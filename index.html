@@ -29,7 +29,6 @@
         // -----------------------------------------------------------
         // ⚠️ PASTE YOUR FIREBASE CONFIG HERE
         // -----------------------------------------------------------
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyB-P87cAnvDHpCoPocqhjHE9zGaDQXxe2U",
   authDomain: "balance-t.firebaseapp.com",
@@ -59,15 +58,23 @@ const firebaseConfig = {
         </div>
 
         <nav class="flex-1 overflow-y-auto custom-scroll py-6 px-3 space-y-1">
-            <button @click="currentTab = 'dashboard'" :class="currentTab === 'dashboard' ? 'bg-blue-600/10 text-blue-400 border-blue-600' : 'text-slate-400 hover:bg-slate-800 hover:text-white border-transparent'" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg border-l-4 transition-all">
-                <span>📍 Live Map</span>
+            <button @click="currentTab = 'dashboard'; dashboardView = 'grid'" 
+                    :class="currentTab === 'dashboard' && dashboardView === 'grid' ? 'bg-blue-600/10 text-blue-400 border-blue-600' : 'text-slate-400 hover:bg-slate-800 hover:text-white border-transparent'" 
+                    class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg border-l-4 transition-all">
+                <span>📍 Fleet Overview</span>
             </button>
+            
             <div x-show="currentTab === 'dashboard'" x-transition class="pl-11 pr-2 space-y-1 pb-4">
-                <button @click="setDashboardFilter('All')" :class="dashboardFilter === 'All' ? 'text-white font-semibold' : 'text-slate-500 hover:text-slate-300'" class="block w-full text-left text-xs py-1.5 transition">All Regions</button>
                 <template x-for="region in regions" :key="region.id">
-                    <button @click="setDashboardFilter(region.id)" :class="dashboardFilter === region.id ? 'text-white font-semibold' : 'text-slate-500 hover:text-slate-300'" class="block w-full text-left text-xs py-1.5 transition" x-text="region.name"></button>
+                    <button @click="setDashboardFilter(region.id)" 
+                            :class="dashboardFilter === region.id && dashboardView === 'list' ? 'text-white font-semibold' : 'text-slate-500 hover:text-slate-300'" 
+                            class="block w-full text-left text-xs py-1.5 transition flex justify-between group">
+                        <span x-text="region.name"></span>
+                        <span x-show="getRegionCount(region.id) > 0" class="text-[10px] bg-slate-800 px-1.5 rounded text-slate-400 group-hover:text-white" x-text="getRegionCount(region.id)"></span>
+                    </button>
                 </template>
             </div>
+
             <button @click="currentTab = 'profiles'" :class="currentTab === 'profiles' ? 'bg-blue-600/10 text-blue-400 border-blue-600' : 'text-slate-400 hover:bg-slate-800 hover:text-white border-transparent'" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg border-l-4 transition-all">
                 <span>👥 Fleet Roster</span>
             </button>
@@ -89,60 +96,94 @@ const firebaseConfig = {
 
     <main class="flex-1 flex flex-col h-full overflow-hidden relative">
 
-        <div x-show="currentTab === 'dashboard'" class="flex-1 flex flex-col h-full">
-            <div class="bg-slate-900/50 border-b border-slate-800 p-6 flex justify-between items-center gap-4">
-                <div>
-                    <h2 class="text-2xl font-bold text-white" x-text="dashboardFilter === 'All' ? 'All Regions' : getRegionName(dashboardFilter)"></h2>
-                    <p class="text-sm text-slate-500">Real-time fleet operations monitoring</p>
-                </div>
-                <div class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 shadow-lg">
-                    <div class="text-xs text-slate-500 uppercase font-bold tracking-wider">Active Units</div>
-                    <div class="text-2xl font-bold text-white leading-none mt-1" x-text="filteredDrivers.length">--</div>
-                </div>
-            </div>
+        <div x-show="currentTab === 'dashboard'" class="flex-1 flex flex-col h-full overflow-hidden">
+            
+            <div x-show="dashboardView === 'grid'" class="flex-1 overflow-y-auto custom-scroll p-8">
+                <h2 class="text-2xl font-bold text-white mb-2">Operations Overview</h2>
+                <p class="text-slate-500 text-sm mb-8">Select a region to view live details.</p>
 
-            <div class="px-6 pt-6 shrink-0">
-                <h3 class="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2"><span>📊</span> Live Shift Hours</h3>
-                <div class="flex gap-4 overflow-x-auto custom-scroll pb-2">
-                    <template x-for="(hours, regionName) in regionStats" :key="regionName">
-                        <div class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 min-w-[140px] shrink-0 shadow-sm">
-                            <div class="text-[10px] text-slate-400 uppercase font-bold truncate" x-text="regionName"></div>
-                            <div class="text-xl font-bold text-white"><span x-text="hours.toFixed(1)"></span> <span class="text-xs text-slate-500 font-normal">hrs</span></div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <template x-for="stat in regionGridData" :key="stat.id">
+                        <div @click="setDashboardFilter(stat.id)" 
+                             class="bg-slate-900 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800/50 rounded-xl p-6 cursor-pointer transition-all duration-200 group relative overflow-hidden">
+                            
+                            <div class="flex justify-between items-start mb-4 relative z-10">
+                                <h3 class="text-lg font-bold text-white group-hover:text-blue-400 transition" x-text="stat.name"></h3>
+                                <div class="bg-slate-950/50 rounded-lg px-2 py-1 border border-slate-700/50">
+                                    <span class="text-xs font-mono text-slate-400" x-text="stat.id"></span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4 mb-4 relative z-10">
+                                <div>
+                                    <div class="text-3xl font-bold text-white" x-text="stat.count"></div>
+                                    <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mt-1">Active</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-3xl font-bold text-emerald-400" x-text="stat.hours.toFixed(1)"></div>
+                                    <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mt-1">Total Hrs</div>
+                                </div>
+                            </div>
+
+                            <div class="w-full bg-slate-950 rounded-full h-2 mb-2 relative z-10 overflow-hidden">
+                                <div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-emerald-500" :style="`width: ${Math.min((stat.count / 20) * 100, 100)}%`"></div>
+                            </div>
+                            
+                            <div class="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-emerald-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         </div>
                     </template>
-                    <div x-show="Object.keys(regionStats).length === 0" class="text-xs text-slate-600 italic">No active data available.</div>
+
+                    <div x-show="regionGridData.length === 0" class="col-span-full p-12 text-center border border-dashed border-slate-800 rounded-xl text-slate-500">
+                        No regions configured. Go to Admin to add regions.
+                    </div>
                 </div>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-6 custom-scroll">
-                <div class="bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-800">
-                    <table class="w-full text-left border-collapse">
-                        <thead class="bg-slate-950 text-slate-400 text-xs uppercase font-bold tracking-wider border-b border-slate-800">
-                            <tr>
-                                <th class="p-4">Driver Name</th>
-                                <th class="p-4">Vehicle</th>
-                                <th class="p-4">Region</th>
-                                <th class="p-4 text-right">Shift Progress</th>
-                                <th class="p-4 text-right">Duration</th>
-                                <th class="p-4 text-center">Status</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-slate-800/50 text-sm">
-                            <template x-for="driver in filteredDrivers" :key="driver.id">
-                                <tr class="hover:bg-slate-800/50 transition duration-150" :style="getProgressStyle(driver)">
-                                    <td class="p-4 font-bold text-white" x-text="getDriverName(driver.id)"></td>
-                                    <td class="p-4 text-blue-300 font-mono" x-text="driver.vehicle_number || driver.vehicle || 'N/A'"></td>
-                                    <td class="p-4 text-emerald-300" x-text="getRegionName(getDriverRegionID(driver))"></td>
-                                    <td class="p-4 text-right text-slate-400 font-mono">
-                                        <div class="flex flex-col items-end"><span class="text-white" x-text="formatTime(driver.login_time)"></span><span class="text-[10px] text-slate-600 uppercase">Start</span></div>
-                                    </td>
-                                    <td class="p-4 text-right text-white font-mono" x-text="calculateDuration(driver.login_time)"></td>
-                                    <td class="p-4 text-center"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span></td>
+            <div x-show="dashboardView === 'list'" class="flex-1 flex flex-col h-full">
+                <div class="bg-slate-900/50 border-b border-slate-800 p-6 flex justify-between items-center gap-4">
+                    <div class="flex items-center gap-4">
+                        <button @click="dashboardView = 'grid'" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-2 text-sm font-bold">
+                            <span>←</span> Back
+                        </button>
+                        <div>
+                            <h2 class="text-2xl font-bold text-white" x-text="getRegionName(dashboardFilter)"></h2>
+                            <p class="text-sm text-slate-500">Live View</p>
+                        </div>
+                    </div>
+                    <div class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 shadow-lg">
+                        <div class="text-xs text-slate-500 uppercase font-bold tracking-wider">Drivers</div>
+                        <div class="text-2xl font-bold text-white leading-none mt-1" x-text="filteredDrivers.length">--</div>
+                    </div>
+                </div>
+
+                <div class="flex-1 overflow-y-auto p-6 custom-scroll">
+                    <div class="bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-800">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-950 text-slate-400 text-xs uppercase font-bold tracking-wider border-b border-slate-800">
+                                <tr>
+                                    <th class="p-4">Driver Name</th>
+                                    <th class="p-4">Vehicle</th>
+                                    <th class="p-4 text-right">Shift Progress</th>
+                                    <th class="p-4 text-right">Duration</th>
+                                    <th class="p-4 text-center">Status</th>
                                 </tr>
-                            </template>
-                            <tr x-show="filteredDrivers.length === 0"><td colspan="6" class="p-12 text-center text-slate-500 italic">No active drivers found.</td></tr>
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800/50 text-sm">
+                                <template x-for="driver in filteredDrivers" :key="driver.id">
+                                    <tr class="hover:bg-slate-800/50 transition duration-150" :style="getProgressStyle(driver)">
+                                        <td class="p-4 font-bold text-white" x-text="getDriverName(driver.id)"></td>
+                                        <td class="p-4 text-blue-300 font-mono" x-text="driver.vehicle_number || 'N/A'"></td>
+                                        <td class="p-4 text-right text-slate-400 font-mono">
+                                            <div class="flex flex-col items-end"><span class="text-white" x-text="formatTime(driver.login_time)"></span><span class="text-[10px] text-slate-600 uppercase">Start</span></div>
+                                        </td>
+                                        <td class="p-4 text-right text-white font-mono" x-text="calculateDuration(driver.login_time)"></td>
+                                        <td class="p-4 text-center"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span></td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredDrivers.length === 0"><td colspan="5" class="p-12 text-center text-slate-500 italic">No active drivers in this region.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -231,9 +272,7 @@ const firebaseConfig = {
                                         <div class="flex flex-col items-center w-full gap-2 group relative h-full justify-end">
                                            <div x-show="day.hours > 0" class="absolute -top-8 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition shadow-lg border border-slate-700" x-text="day.hours.toFixed(1) + 'h'"></div>
                                            <div class="w-full bg-slate-800/50 rounded-sm relative flex-1 flex items-end overflow-hidden" style="height: 100%">
-                                               <div class="w-full rounded-sm transition-all duration-700" 
-                                                    :class="day.hours > 8 ? 'bg-emerald-500' : 'bg-blue-600'"
-                                                    :style="'height: ' + day.pct + '%'"></div>
+                                               <div class="w-full rounded-sm transition-all duration-700" :class="day.hours > 8 ? 'bg-emerald-500' : 'bg-blue-600'" :style="'height: ' + day.pct + '%'"></div>
                                            </div>
                                            <span class="text-[10px] text-slate-500 uppercase font-bold" x-text="day.label"></span>
                                         </div>
@@ -350,7 +389,7 @@ const firebaseConfig = {
             return {
                 // State
                 currentTab: 'dashboard',
-                mobileMenuOpen: false,
+                dashboardView: 'grid', // 'grid' or 'list'
                 dashboardFilter: 'All',
                 regions: [],
                 activeDrivers: [],
@@ -378,19 +417,25 @@ const firebaseConfig = {
                         return this.dashboardFilter === 'All' || r === this.dashboardFilter;
                     });
                 },
-                get regionStats() {
-                    const stats = {};
+                get regionGridData() {
+                    // Calculate stats per region for the grid view
                     const now = new Date();
-                    this.activeDrivers.forEach(d => {
-                        const rID = this.getDriverRegionID(d);
-                        const rName = this.getRegionName(rID);
-                        const start = this.toDate(d.login_time);
-                        if(start) {
-                            const hrs = (now - start) / 3600000;
-                            stats[rName] = (stats[rName] || 0) + hrs;
-                        }
+                    const data = this.regions.map(r => {
+                        let count = 0;
+                        let hours = 0;
+                        
+                        this.activeDrivers.forEach(d => {
+                            // Check matches
+                            const dReg = this.getDriverRegionID(d);
+                            if(dReg === r.id) {
+                                count++;
+                                const s = this.toDate(d.login_time);
+                                if(s) hours += (now - s) / 3600000;
+                            }
+                        });
+                        return { id: r.id, name: r.name, count, hours };
                     });
-                    return stats;
+                    return data;
                 },
                 get weeklyStats() {
                     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -436,13 +481,15 @@ const firebaseConfig = {
                     const d = new Date(val);
                     return isNaN(d.getTime()) ? null : d;
                 },
-                // THE MAGIC FIX: CATCH-ALL KEY CHECK
                 getDriverRegionID(d) {
                     return d.Driversite || d.site_id || d.region_id || d.site || d.region || 'Unassigned';
                 },
                 getRegionName(id) {
                     const r = this.regions.find(x => x.id === id);
                     return r ? r.name : (id || 'Unknown');
+                },
+                getRegionCount(id) {
+                    return this.activeDrivers.filter(d => this.getDriverRegionID(d) === id).length;
                 },
                 getDriverName(id) {
                     const d = this.roster.find(x => x.id === id);
@@ -489,7 +536,10 @@ const firebaseConfig = {
                 isActive(id) { return this.activeDrivers.some(d => d.id === id); },
 
                 // Actions
-                setDashboardFilter(id) { this.dashboardFilter = id; },
+                setDashboardFilter(id) { 
+                    this.dashboardFilter = id;
+                    this.dashboardView = 'list'; // Drill down automatically
+                },
                 selectDriver(id) {
                     this.selectedDriverId = id;
                     const driver = this.roster.find(d => d.id === id) || {};
@@ -497,7 +547,7 @@ const firebaseConfig = {
                         name: driver.name || '',
                         vehicle: driver.vehicle || '',
                         note: driver.alert_note || '',
-                        region: this.getDriverRegionID(driver) || '' // Use safe getter
+                        region: this.getDriverRegionID(driver) || ''
                     };
                     this.loadHistory(id);
                 },
@@ -510,9 +560,8 @@ const firebaseConfig = {
                         const s = this.toDate(d.login_time);
                         const e = this.toDate(d.logout_time);
                         let dur = 0;
-                        // FIX: Calc duration active vs closed
                         if (s && e) dur = (e - s) / 3600000;
-                        else if (s) dur = (now - s) / 3600000; // Show progress for active trip
+                        else if (s) dur = (now - s) / 3600000;
                         return { id: doc.id, ...d, duration: dur };
                     });
                 },
@@ -546,7 +595,7 @@ const firebaseConfig = {
                     if(confirm("Delete region?")) await db.collection(COLLECTIONS.REGIONS).doc(id).delete();
                 },
 
-                // EXPORT
+                // EXPORT ACTIONS
                 async generateDailyReport() {
                     this.isExporting = true;
                     const { start, end } = this.getLocalDayRange(this.exportForm.dailyDate);
