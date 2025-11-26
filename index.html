@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fleet Command | Admin Console</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; }
+        
+        /* Scrollbars */
+        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #0f172a; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        
+        .nav-item.active { background-color: #1e293b; color: #fff; border-right: 3px solid #3b82f6; }
+        .region-link.active { color: #3b82f6; background: rgba(59, 130, 246, 0.1); font-weight: bold; }
+        .editor-tab.active { border-bottom: 2px solid #3b82f6; color: white; }
+        .editor-tab { color: #64748b; border-bottom: 2px solid transparent; }
+        .editor-tab:hover { color: #94a3b8; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden bg-slate-950">
+
+    <script>
+        // -----------------------------------------------------------
+        // ⚠️ PASTE YOUR FIREBASE CONFIG HERE
+        // -----------------------------------------------------------
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyB-P87cAnvDHpCoPocqhjHE9zGaDQXxe2U",
+  authDomain: "balance-t.firebaseapp.com",
+  databaseURL: "https://balance-t-default-rtdb.firebaseio.com",
+  projectId: "balance-t",
+  storageBucket: "balance-t.firebasestorage.app",
+  messagingSenderId: "893924100931",
+  appId: "1:893924100931:web:70427b3ff655341594fdf6",
+  measurementId: "G-5RJM9SQDS1"
+};
+        
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        const APP_ID = "web"; 
+        const COLLECTIONS = {
+            ACTIVE: `artifacts/${APP_ID}/public/data/activeDrivers`,
+            ROSTER: `artifacts/${APP_ID}/public/data/driverRoster`,
+            REGIONS: `artifacts/${APP_ID}/public/data/regions`
+        };
+    </script>
+
+    <aside class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 z-20">
+        <div class="h-16 flex items-center px-6 border-b border-slate-800">
+            <h1 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-emerald-400">
+                DELUXE/DMT
+            </h1>
+        </div>
+        <div class="flex-1 overflow-y-auto custom-scroll py-4 space-y-1">
+            <div>
+                <button onclick="switchTab('dashboard')" id="nav-dashboard" class="nav-item w-full text-left px-6 py-3 text-sm font-medium text-slate-400 flex justify-between items-center group">
+                    <span>📍 Live Map</span>
+                    <span id="accordion-arrow" class="text-xs transform transition-transform">▼</span>
+                </button>
+                <div id="regionAccordion" class="hidden bg-slate-950/50 border-y border-slate-800/50 py-2">
+                    <div class="px-6 py-2 text-xs text-slate-600">Loading...</div>
+                </div>
+            </div>
+            <button onclick="switchTab('profiles')" id="nav-profiles" class="nav-item w-full text-left px-6 py-3 text-sm font-medium text-slate-400">
+                <span>👥 Fleet Roster</span>
+            </button>
+            <button onclick="switchTab('export')" id="nav-export" class="nav-item w-full text-left px-6 py-3 text-sm font-medium text-slate-400">
+                <span>📉 Export Reports</span>
+            </button>
+            <button onclick="switchTab('settings')" id="nav-settings" class="nav-item w-full text-left px-6 py-3 text-sm font-medium text-slate-400">
+                <span>⚙️ Admin</span>
+            </button>
+        </div>
+        <div class="p-4 border-t border-slate-800 bg-slate-900">
+            <div class="flex items-center gap-2">
+                <div id="connectionStatus" class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+                <span class="text-[10px] text-slate-500 font-mono uppercase">System Online</span>
+            </div>
+        </div>
+    </aside>
+
+    <main class="flex-1 overflow-hidden relative bg-slate-950">
+
+        <section id="view-dashboard" class="h-full w-full flex flex-col">
+            <div class="bg-slate-900/50 border-b border-slate-800 p-6 flex justify-between items-center shrink-0">
+                <div>
+                    <h2 class="text-xl font-bold text-white" id="dashTitle">All Regions</h2>
+                    <p class="text-xs text-slate-500">Real-time vehicle tracking</p>
+                </div>
+                <div class="flex gap-4">
+                    <div class="bg-slate-800 px-4 py-2 rounded border border-slate-700 shadow">
+                        <span class="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Active Units</span>
+                        <div id="dash-active-count" class="text-2xl font-bold text-white leading-none mt-1">--</div>
+                    </div>
+                </div>
+            </div>
+            <div class="px-6 pt-6 shrink-0">
+                <h3 class="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                    <span>📊</span> Live Shift Hours by Region
+                </h3>
+                <div id="regionStatsBar" class="flex gap-4 overflow-x-auto custom-scroll pb-2">
+                    <div class="text-xs text-slate-600 italic">Waiting for data...</div>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6 custom-scroll">
+                <div class="bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-800">
+                    <table class="w-full text-left border-collapse">
+                        <thead class="bg-slate-950 text-slate-400 text-xs uppercase border-b border-slate-800">
+                            <tr>
+                                <th class="p-4">Driver Name</th>
+                                <th class="p-4">Vehicle</th>
+                                <th class="p-4">Region</th>
+                                <th class="p-4 text-right">Shift Progress</th>
+                                <th class="p-4 text-right">Duration</th>
+                                <th class="p-4 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboardBody" class="divide-y divide-slate-800/50">
+                            <tr><td colspan="6" class="p-12 text-center text-slate-500">Waiting for data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-profiles" class="h-full w-full hidden flex">
+             <div class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
+                <div class="p-4 border-b border-slate-800 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h3 class="font-bold text-white">Driver Database</h3>
+                        <span id="rosterCount" class="text-xs text-slate-500">0 Drivers</span>
+                    </div>
+                    <select id="rosterRegionFilter" onchange="renderProfileList()" class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white outline-none focus:border-blue-500">
+                        <option value="All">All Regions</option>
+                    </select>
+                    <input type="text" id="driverSearch" onkeyup="renderProfileList()" placeholder="Search ID or Name..." class="w-full bg-slate-800 border border-slate-700 rounded p-2 text-sm text-white outline-none focus:border-blue-500">
+                </div>
+                <div id="profileList" class="flex-1 overflow-y-auto custom-scroll p-2 space-y-1"></div>
+            </div>
+
+            <div class="flex-1 bg-slate-950 flex flex-col h-full overflow-hidden relative">
+                <div id="profileEmptyState" class="absolute inset-0 flex flex-col items-center justify-center text-slate-600 z-0">
+                    <span class="text-6xl mb-4">👤</span>
+                    <p>Select a driver from the list to edit profile.</p>
+                </div>
+                <div id="profileEditor" class="hidden flex flex-col h-full z-10 bg-slate-950">
+                    <div class="p-8 border-b border-slate-800 bg-slate-900/50 shrink-0">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h2 class="text-2xl font-bold text-white" id="headerDriverName">Driver Name</h2>
+                                <span id="editIdDisplay" class="text-xs text-slate-500 font-mono">ID: --</span>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span id="editActiveBadge" class="hidden bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-1 rounded text-xs font-bold uppercase tracking-wider">● Active Now</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-6 text-sm font-bold uppercase tracking-wider mt-6">
+                            <button onclick="switchEditorTab('settings')" id="tab-btn-settings" class="editor-tab active pb-2 transition">Profile Settings</button>
+                            <button onclick="switchEditorTab('history')" id="tab-btn-history" class="editor-tab pb-2 transition">Trip History</button>
+                        </div>
+                    </div>
+                    <div class="flex-1 overflow-y-auto custom-scroll p-8">
+                        <div id="tab-content-settings">
+                            <div class="max-w-3xl">
+                                <div class="grid grid-cols-2 gap-6 mb-6">
+                                    <div>
+                                        <label class="block text-xs uppercase text-slate-500 font-bold mb-1">Full Name</label>
+                                        <input id="editName" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-blue-500 outline-none">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs uppercase text-slate-500 font-bold mb-1">Default Vehicle</label>
+                                        <input id="editVehicle" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-blue-500 outline-none">
+                                    </div>
+                                </div>
+                                <div class="mb-6">
+                                    <label class="block text-xs uppercase text-slate-500 font-bold mb-1">Assigned Region</label>
+                                    <select id="editRegion" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-blue-500 outline-none">
+                                        <option value="">-- No Region Assigned --</option>
+                                    </select>
+                                </div>
+                                <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-4 mb-6">
+                                    <h3 class="text-sm font-bold text-blue-400 uppercase mb-4">Weekly Schedule (End Times)</h3>
+                                    <div id="scheduleGrid" class="grid grid-cols-2 gap-4"></div>
+                                </div>
+                                <div class="mb-6">
+                                    <label class="block text-xs uppercase text-red-400 font-bold mb-1">Alert / Notes</label>
+                                    <textarea id="editNotes" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-red-500 outline-none h-24"></textarea>
+                                </div>
+                                <div class="flex justify-between items-center pt-6 border-t border-slate-800">
+                                    <button id="btnForceSignOut" onclick="forceSignOutCurrent()" class="hidden bg-red-900/50 hover:bg-red-600 text-red-200 hover:text-white border border-red-800 font-bold py-3 px-6 rounded transition flex items-center gap-2">
+                                        <span>⛔</span> Force Sign Out
+                                    </button>
+                                    <button onclick="saveProfile()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-8 rounded shadow-lg transition ml-auto">Save Changes</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="tab-content-history" class="hidden">
+                            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                                <table class="w-full text-left text-sm">
+                                    <thead class="bg-slate-950 text-slate-400 text-xs uppercase border-b border-slate-800">
+                                        <tr>
+                                            <th class="p-4">Date</th>
+                                            <th class="p-4">Duration</th>
+                                            <th class="p-4">Vehicle</th>
+                                            <th class="p-4">Site</th>
+                                            <th class="p-4 w-1/3">Notes (Editable)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="historyTableBody" class="divide-y divide-slate-800">
+                                        <tr><td colspan="5" class="p-8 text-center text-slate-500">Select a driver to load history.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-export" class="h-full w-full hidden p-8 overflow-y-auto custom-scroll">
+            <div class="max-w-5xl mx-auto">
+                <h2 class="text-2xl font-bold text-white mb-8 flex items-center gap-2">
+                    <span>📉</span> Data Export Center
+                </h2>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-lg">
+                        <h3 class="text-xl font-bold text-blue-400 mb-2">Daily Fleet Log</h3>
+                        <p class="text-sm text-slate-400 mb-6">Export all trips for a specific date and region.</p>
+                        
+                        <div class="space-y-4">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label>
+                                    <input type="date" id="exportDate" class="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white outline-none focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Region</label>
+                                    <select id="exportDailyRegion" class="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white outline-none focus:border-blue-500">
+                                        <option value="All">All Regions</option>
+                                        </select>
+                                </div>
+                            </div>
+                            
+                            <button onclick="generateDailyReport()" id="btnDailyExport" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded transition shadow-lg flex justify-center items-center gap-2">
+                                <span>⬇️</span> Download Daily Report
+                            </button>
+                            <p id="dailyExportStatus" class="text-xs text-center text-slate-500 h-4"></p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-lg">
+                        <h3 class="text-xl font-bold text-emerald-400 mb-2">Driver History</h3>
+                        <p class="text-sm text-slate-400 mb-6">Export trip logs for a single driver over a date range.</p>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Select Driver</label>
+                                <select id="exportDriverSelect" class="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white outline-none focus:border-emerald-500">
+                                    <option value="">-- Choose Driver --</option>
+                                    </select>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Start Date</label>
+                                    <input type="date" id="exportStart" class="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white outline-none focus:border-emerald-500">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">End Date</label>
+                                    <input type="date" id="exportEnd" class="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white outline-none focus:border-emerald-500">
+                                </div>
+                            </div>
+
+                            <button onclick="generateDriverReport()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded transition shadow-lg flex justify-center items-center gap-2">
+                                <span>⬇️</span> Download Driver History
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <section id="view-settings" class="h-full w-full hidden p-8 overflow-y-auto custom-scroll">
+            <div class="max-w-5xl mx-auto space-y-12">
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6">
+                    <h2 class="text-xl font-bold text-white mb-2">System Status</h2>
+                    <p class="text-slate-400 text-sm">Project: <span class="text-emerald-400 font-mono" id="setting-project-id">--</span></p>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-6">
+                        <div>
+                            <h2 class="text-2xl font-bold text-white">Region Management</h2>
+                            <p class="text-slate-400 text-sm">Map your Webhook IDs to Display Names here.</p>
+                        </div>
+                        <button onclick="openAddRegionModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded shadow-lg flex items-center gap-2">
+                            <span>+</span> Add Region
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="regionGrid">
+                        <div class="p-12 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-xl">Loading...</div>
+                    </div>
+                </div>
+                 <div class="bg-slate-900 border border-red-900/30 rounded-xl p-8">
+                    <h2 class="text-xl font-bold text-white mb-6">Danger Zone</h2>
+                    <div class="flex items-center justify-between">
+                        <div><h3 class="font-bold text-red-400">Purge All Data</h3><p class="text-sm text-slate-500">Deletes ALL Drivers, History, and Settings.</p></div>
+                        <button onclick="emergencyPurge()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition">⚠️ PURGE SYSTEM</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="regionModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl p-8 w-full max-w-md shadow-2xl">
+            <h2 class="text-xl font-bold text-white mb-6">Add New Region</h2>
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-xs uppercase text-slate-400 font-bold mb-1">Webhook / Tablet ID</label>
+                    <input type="text" id="inputRegionId" placeholder="e.g. 5021 or us-west" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-blue-500 outline-none font-mono text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs uppercase text-slate-400 font-bold mb-1">Display Name</label>
+                    <input type="text" id="inputRegionName" placeholder="e.g. Portland HQ" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-blue-500 outline-none">
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="document.getElementById('regionModal').classList.add('hidden')" class="flex-1 bg-slate-800 hover:bg-slate-700 text-white py-3 rounded font-bold">Cancel</button>
+                <button onclick="saveNewRegion()" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded font-bold">Save Region</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let activeData = [];
+        let rosterData = [];
+        let regionData = [];
+        let currentEditId = null;
+        let historyUnsubscribe = null;
+        let dashboardRegionFilter = 'All'; 
+        const daysOfWeek = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+        auth.signInAnonymously().then(() => {
+            document.getElementById('connectionStatus').classList.replace('bg-red-500', 'bg-emerald-500');
+            document.getElementById('setting-project-id').innerText = firebaseConfig.projectId;
+            
+            // Export default dates
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('exportDate').value = today;
+            document.getElementById('exportEnd').value = today;
+            const lastWeek = new Date();
+            lastWeek.setDate(lastWeek.getDate() - 7);
+            document.getElementById('exportStart').value = lastWeek.toISOString().split('T')[0];
+
+            initDashboard(); initRosterListener(); initRegionsListener();
+        });
+
+        function switchTab(tabId) {
+            ['dashboard', 'profiles', 'export', 'settings'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                document.getElementById(`nav-${t}`).classList.remove('active');
+            });
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            document.getElementById(`nav-${tabId}`).classList.add('active');
+            
+            const accordion = document.getElementById('regionAccordion');
+            const arrow = document.getElementById('accordion-arrow');
+            if(tabId === 'dashboard') {
+                accordion.classList.remove('hidden');
+                arrow.style.transform = 'rotate(180deg)';
+            } else {
+                accordion.classList.add('hidden');
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // --- UTILS ---
+        function getRegionName(id) {
+            const r = regionData.find(reg => reg.id === id);
+            return r ? r.name : id; 
+        }
+
+        function convertDate(val) {
+            if (!val) return null;
+            if (val.toDate) return val.toDate();
+            const parsed = new Date(val);
+            if(!isNaN(parsed.getTime())) return parsed;
+            return null;
+        }
+
+        // --- DASHBOARD ---
+        function initDashboard() {
+            db.collection(COLLECTIONS.ACTIVE).onSnapshot(snap => {
+                activeData = [];
+                snap.forEach(doc => activeData.push({id: doc.id, ...doc.data()}));
+                renderDashboard();
+            });
+        }
+
+        function setDashboardFilter(regionId) {
+            dashboardRegionFilter = regionId;
+            const prettyName = regionId === 'All' ? "All Regions" : getRegionName(regionId);
+            document.getElementById('dashTitle').innerText = prettyName;
+            renderDashboard();
+            renderRegionSidebarList(); 
+        }
+
+        function renderDashboard() {
+            const tbody = document.getElementById('dashboardBody');
+            const statsBar = document.getElementById('regionStatsBar');
+            
+            const visibleData = activeData.filter(d => {
+                const r = d.site_id || d.region_id || d.Driversite || 'Unassigned';
+                return dashboardRegionFilter === 'All' || r === dashboardRegionFilter;
+            });
+
+            document.getElementById('dash-active-count').innerText = visibleData.length;
+
+            // Stats Logic
+            let regionStats = {};
+            const now = new Date();
+            activeData.forEach(d => {
+                const rawRegion = d.site_id || d.region_id || d.Driversite || 'Unassigned';
+                const rName = getRegionName(rawRegion);
+                let startTimeObj = convertDate(d.login_time);
+                if(startTimeObj) {
+                    const diffMs = now - startTimeObj;
+                    const hours = diffMs / 3600000; 
+                    if(!regionStats[rName]) regionStats[rName] = 0;
+                    regionStats[rName] += hours;
+                }
+            });
+
+            let statsHtml = '';
+            if(Object.keys(regionStats).length === 0) statsHtml = `<div class="text-xs text-slate-600">No active shifts.</div>`;
+            else {
+                Object.entries(regionStats).sort(([,a],[,b]) => b - a).forEach(([name, hours]) => {
+                    statsHtml += `
+                    <div class="bg-slate-800 border border-slate-700 rounded px-4 py-2 min-w-[140px] shrink-0 shadow">
+                        <div class="text-[10px] text-slate-400 uppercase font-bold truncate">${name}</div>
+                        <div class="text-xl font-bold text-white">${hours.toFixed(1)} <span class="text-xs text-slate-500 font-normal">hrs</span></div>
+                    </div>`;
+                });
+            }
+            statsBar.innerHTML = statsHtml;
+
+            // Render Table
+            if (visibleData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-12 text-center text-slate-500 italic">No active drivers found for: ${dashboardRegionFilter}</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            const todayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+
+            visibleData.forEach(d => {
+                const roster = rosterData.find(r => r.id === d.id) || {};
+                const rawRegion = d.site_id || d.region_id || d.Driversite || 'N/A';
+                const regionDisplay = getRegionName(rawRegion);
+                const nameDisplay = roster.name || d.id;
+
+                let startTimeObj = convertDate(d.login_time);
+                const timeStr = startTimeObj ? startTimeObj.toLocaleTimeString([],{hour:'2-digit', minute:'2-digit'}) : '--';
+                
+                let progressPct = 0;
+                let barColor = '#10b981'; 
+                const scheduledEndStr = roster.schedule?.[todayName];
+                
+                if (scheduledEndStr && startTimeObj) {
+                    const [endH, endM] = scheduledEndStr.split(':');
+                    const endTimeObj = new Date();
+                    endTimeObj.setHours(endH, endM, 0);
+                    const totalShiftDuration = endTimeObj - startTimeObj;
+                    const elapsed = now - startTimeObj;
+                    if (totalShiftDuration > 0) progressPct = (elapsed / totalShiftDuration) * 100;
+                } else if(startTimeObj) {
+                    const elapsed = now - startTimeObj;
+                    progressPct = (elapsed / 28800000) * 100; // 8h default
+                }
+                if (progressPct > 100) { progressPct = 100; barColor = '#ef4444'; }
+                
+                let durationStr = '--';
+                if(startTimeObj) {
+                    const diffMs = now - startTimeObj;
+                    const diffHrs = Math.floor(diffMs / 3600000);
+                    const diffMins = Math.floor((diffMs % 3600000) / 60000);
+                    durationStr = `${diffHrs}h ${diffMins}m`;
+                }
+
+                html += `
+                    <tr class="hover:bg-slate-800/50 transition" 
+                        style="background: linear-gradient(to right, ${barColor} ${progressPct}%, transparent ${progressPct}%) no-repeat bottom; background-size: 100% 2px;">
+                        <td class="p-4 font-bold text-white">${nameDisplay}</td>
+                        <td class="p-4 text-blue-300 font-mono">${d.vehicle_number || d.vehicle || 'N/A'}</td>
+                        <td class="p-4 text-emerald-300">${regionDisplay}</td>
+                        <td class="p-4 text-right text-slate-400 font-mono text-sm">
+                            <div class="flex flex-col items-end"><span class="text-white">${timeStr}</span><span class="text-[10px] text-slate-600 uppercase">Start</span></div>
+                        </td>
+                        <td class="p-4 text-right text-white font-mono">${durationStr}</td>
+                        <td class="p-4 text-center"><span class="px-2 py-1 rounded bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30">ONLINE</span></td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // --- EXPORT LOGIC ---
+        
+        function exportToCSV(filename, rows) {
+            const processRow = function (row) {
+                let finalVal = '';
+                for (let j = 0; j < row.length; j++) {
+                    let innerValue = row[j] === null || row[j] === undefined ? '' : row[j].toString();
+                    if (row[j] instanceof Date) innerValue = row[j].toLocaleString();
+                    let result = innerValue.replace(/"/g, '""');
+                    if (result.search(/("|,|\n)/g) >= 0) result = '"' + result + '"';
+                    if (j > 0) finalVal += ',';
+                    finalVal += result;
+                }
+                return finalVal + '\n';
+            };
+
+            let csvFile = '';
+            for (let i = 0; i < rows.length; i++) csvFile += processRow(rows[i]);
+
+            const blob = new Blob([csvFile], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            if (link.download !== undefined) { 
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        // Helper: Create Local Date Range (ignore UTC shift)
+        function getLocalDayRange(dateString) {
+            if(!dateString) return null;
+            const parts = dateString.split('-');
+            const year = parseInt(parts[0]);
+            const month = parseInt(parts[1]) - 1; // Month is 0-indexed
+            const day = parseInt(parts[2]);
+
+            const start = new Date(year, month, day, 0, 0, 0, 0);
+            const end = new Date(year, month, day, 23, 59, 59, 999);
+            return { start, end };
+        }
+
+        async function generateDailyReport() {
+            const dateInput = document.getElementById('exportDate').value;
+            const regionInput = document.getElementById('exportDailyRegion').value;
+            const status = document.getElementById('dailyExportStatus');
+            const btn = document.getElementById('btnDailyExport');
+            
+            if(!dateInput) return alert("Please select a date");
+            
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+            
+            const { start: targetDateStart, end: targetDateEnd } = getLocalDayRange(dateInput);
+
+            const csvData = [['Driver Name', 'Driver ID', 'Vehicle', 'Region', 'Login Time', 'Logout Time', 'Duration (Hours)', 'Notes']];
+            
+            try {
+                const totalDrivers = rosterData.length;
+                let processed = 0;
+
+                const promises = rosterData.map(async (driver) => {
+                    // NO LIMIT - Fetch whole history to ensure we find past dates stored as strings
+                    const snap = await db.collection(COLLECTIONS.ROSTER).doc(driver.id).collection("shiftHistory").get();
+                    
+                    snap.forEach(doc => {
+                        const data = doc.data();
+                        const login = convertDate(data.login_time);
+                        const logout = convertDate(data.logout_time);
+                        
+                        // 1. Date Check
+                        if (login && login >= targetDateStart && login <= targetDateEnd) {
+                            
+                            // 2. Region Check
+                            // Data might be in data.site or data.region. Check against input.
+                            const tripRegionID = data.site || data.region || 'Unassigned';
+                            if (regionInput === 'All' || tripRegionID === regionInput) {
+                                
+                                let dur = 0;
+                                if(logout) dur = (logout - login) / 3600000;
+
+                                csvData.push([
+                                    driver.name || driver.id,
+                                    driver.id,
+                                    data.vehicle || '',
+                                    getRegionName(tripRegionID), // Pretty name for CSV
+                                    login.toLocaleString(),
+                                    logout ? logout.toLocaleString() : 'Active',
+                                    dur > 0 ? dur.toFixed(2) : '0.00',
+                                    data.note || ''
+                                ]);
+                            }
+                        }
+                    });
+                    processed++;
+                    status.innerText = `Scanning driver ${processed}/${totalDrivers}...`;
+                });
+
+                await Promise.all(promises);
+                
+                status.innerText = "Generating CSV...";
+                exportToCSV(`Fleet_Daily_Log_${dateInput}.csv`, csvData);
+                status.innerText = "Download Complete.";
+
+            } catch(e) {
+                alert("Export Error: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+                setTimeout(() => status.innerText = "", 3000);
+            }
+        }
+
+        async function generateDriverReport() {
+            const driverId = document.getElementById('exportDriverSelect').value;
+            const startDate = document.getElementById('exportStart').value;
+            const endDate = document.getElementById('exportEnd').value;
+
+            if(!driverId || !startDate || !endDate) return alert("Please fill all fields");
+
+            const { start: sDate } = getLocalDayRange(startDate);
+            const { end: eDate } = getLocalDayRange(endDate);
+
+            try {
+                const snap = await db.collection(COLLECTIONS.ROSTER).doc(driverId).collection("shiftHistory").get();
+
+                const driverName = document.getElementById('exportDriverSelect').options[document.getElementById('exportDriverSelect').selectedIndex].text;
+                const csvData = [['Driver', 'Date', 'Vehicle', 'Region', 'Start', 'End', 'Hours', 'Notes']];
+
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    const login = convertDate(d.login_time);
+                    const logout = convertDate(d.logout_time);
+                    
+                    if(login && login >= sDate && login <= eDate) {
+                        let dur = 0;
+                        if(logout) dur = (logout - login) / 3600000;
+
+                        csvData.push([
+                            driverName,
+                            login.toLocaleDateString(),
+                            d.vehicle || '',
+                            getRegionName(d.site || d.region),
+                            login.toLocaleTimeString(),
+                            logout ? logout.toLocaleTimeString() : 'Active',
+                            dur.toFixed(2),
+                            d.note || ''
+                        ]);
+                    }
+                });
+
+                exportToCSV(`Driver_Log_${driverName.replace(/\s/g,'_')}.csv`, csvData);
+
+            } catch(e) { alert(e.message); }
+        }
+
+        // --- REGIONS ---
+        function initRegionsListener() {
+            db.collection(COLLECTIONS.REGIONS).onSnapshot(snap => {
+                regionData = [];
+                snap.forEach(doc => regionData.push({id: doc.id, ...doc.data()}));
+                renderRegionSidebarList(); renderRegionGrid(); updateDropdowns();
+                renderDashboard();
+            });
+        }
+
+        function renderRegionSidebarList() {
+            const container = document.getElementById('regionAccordion');
+            let html = `<button onclick="setDashboardFilter('All')" class="region-link block w-full text-left px-6 py-2 text-xs text-slate-400 ${dashboardRegionFilter === 'All' ? 'active' : ''}">All Regions</button>`;
+            regionData.forEach(r => {
+                const isActive = dashboardRegionFilter === r.id ? 'active' : '';
+                html += `<button onclick="setDashboardFilter('${r.id}')" class="region-link block w-full text-left px-6 py-2 text-xs text-slate-400 ${isActive}">${r.name || r.id}</button>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function renderRegionGrid() {
+            const grid = document.getElementById('regionGrid');
+            if(regionData.length === 0) { grid.innerHTML = `<div class="p-12 text-center text-slate-500 col-span-full border border-dashed border-slate-800 rounded-xl">No regions.</div>`; return; }
+            let html = '';
+            regionData.forEach(r => {
+                const count = activeData.filter(d => (d.site_id || d.region_id || d.Driversite) === r.id).length;
+                html += `
+                <div class="bg-slate-800 border border-slate-700 rounded-xl p-6 relative">
+                    <div class="flex justify-between mb-2">
+                        <div><h3 class="text-xl font-bold text-white">${r.name}</h3><p class="text-xs text-slate-500 font-mono mt-1">ID: ${r.id}</p></div>
+                        <div class="bg-slate-900 p-2 rounded text-center min-w-[3rem] h-fit"><span class="block text-lg font-bold text-white">${count}</span><span class="block text-[10px] text-slate-500">ACTIVE</span></div>
+                    </div>
+                    <button onclick="deleteRegion('${r.id}')" class="text-xs text-red-400 hover:underline mt-2">Delete</button>
+                </div>`;
+            });
+            grid.innerHTML = html;
+        }
+
+        function updateDropdowns() {
+            const editSelect = document.getElementById('editRegion');
+            const rosterSelect = document.getElementById('rosterRegionFilter');
+            const exportDailySelect = document.getElementById('exportDailyRegion');
+            const rosterVal = rosterSelect.value;
+            
+            editSelect.innerHTML = '<option value="">-- No Region --</option>';
+            rosterSelect.innerHTML = '<option value="All">All Regions</option>';
+            exportDailySelect.innerHTML = '<option value="All">All Regions</option>';
+
+            regionData.forEach(r => {
+                editSelect.add(new Option(r.name, r.id));
+                rosterSelect.add(new Option(r.name, r.id));
+                exportDailySelect.add(new Option(r.name, r.id)); // Add to Export
+            });
+            if([...rosterSelect.options].some(o => o.value === rosterVal)) rosterSelect.value = rosterVal;
+        }
+
+        // --- ROSTER & PROFILE ---
+        function initRosterListener() {
+            db.collection(COLLECTIONS.ROSTER).onSnapshot(snap => {
+                rosterData = [];
+                const exportSelect = document.getElementById('exportDriverSelect');
+                exportSelect.innerHTML = '<option value="">-- Choose Driver --</option>';
+                
+                snap.forEach(doc => {
+                    const d = doc.data();
+                    rosterData.push({id: doc.id, ...d});
+                    exportSelect.add(new Option(d.name || d.id, doc.id));
+                });
+                
+                renderProfileList();
+                renderDashboard();
+            });
+        }
+
+        function renderProfileList() {
+            const list = document.getElementById('profileList');
+            const term = document.getElementById('driverSearch').value.toLowerCase();
+            const regionFilter = document.getElementById('rosterRegionFilter').value;
+            
+            const filtered = rosterData.filter(d => {
+                const matchesName = (d.name || d.id).toLowerCase().includes(term);
+                const matchesId = d.id.toLowerCase().includes(term);
+                const dReg = d.default_region || d.region || d.site_id || "Unassigned";
+                const matchesRegion = regionFilter === 'All' || dReg === regionFilter;
+                return (matchesName || matchesId) && matchesRegion;
+            });
+
+            document.getElementById('rosterCount').innerText = `${filtered.length} Drivers`;
+            
+            let html = '';
+            filtered.forEach(d => {
+                const isActive = activeData.some(act => act.id === d.id);
+                const statusDot = isActive ? `<span class="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-2"></span>` : '';
+                const dRegId = d.default_region || d.region || d.site_id;
+                const prettyReg = getRegionName(dRegId) || '';
+
+                html += `<div onclick="loadProfileEditor('${d.id}')" class="p-3 bg-slate-800/50 hover:bg-slate-800 border-l-2 border-transparent hover:border-blue-500 cursor-pointer rounded mb-1 transition group"><div class="flex justify-between"><div class="font-bold text-white text-sm">${statusDot}${d.name || d.id}</div><div class="text-[10px] text-slate-500">${prettyReg}</div></div><div class="text-xs text-slate-500">ID: ${d.id}</div></div>`;
+            });
+            list.innerHTML = html;
+        }
+
+        function loadProfileEditor(id) {
+            currentEditId = id;
+            const driver = rosterData.find(d => d.id === id) || {id};
+            document.getElementById('profileEmptyState').classList.add('hidden');
+            document.getElementById('profileEditor').classList.remove('hidden');
+            document.getElementById('editIdDisplay').innerText = `ID: ${id}`;
+            document.getElementById('headerDriverName').innerText = driver.name || `Driver ${id}`;
+            document.getElementById('editName').value = driver.name || '';
+            document.getElementById('editVehicle').value = driver.vehicle || '';
+            document.getElementById('editNotes').value = driver.alert_note || '';
+            document.getElementById('editRegion').value = driver.default_region || driver.region || "";
+            
+            const schedContainer = document.getElementById('scheduleGrid');
+            schedContainer.innerHTML = '';
+            const savedSchedule = driver.schedule || {};
+            daysOfWeek.forEach(day => {
+                const val = savedSchedule[day] || "";
+                schedContainer.innerHTML += `<div class="flex flex-col"><label class="text-[10px] text-slate-500 uppercase">${day}</label><input type="time" id="sched_${day}" value="${val}" class="bg-slate-950 border border-slate-700 text-white rounded px-2 py-1 text-sm outline-none focus:border-blue-500"></div>`;
+            });
+            
+            checkActiveStateInEditor(id);
+            initHistoryListener(id);
+            switchEditorTab('settings');
+        }
+
+        function initHistoryListener(driverId) {
+            if(historyUnsubscribe) historyUnsubscribe();
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-500">Loading history...</td></tr>';
+
+            historyUnsubscribe = db.collection(COLLECTIONS.ROSTER).doc(driverId).collection("shiftHistory")
+                .orderBy("login_time", "desc").limit(50)
+                .onSnapshot(snap => {
+                    if(snap.empty) { tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-slate-500">No trip history found.</td></tr>'; return; }
+                    let html = '';
+                    snap.forEach(doc => {
+                        const d = doc.data();
+                        let start = convertDate(d.login_time);
+                        let end = convertDate(d.logout_time);
+                        const dateStr = start ? start.toLocaleDateString() : 'Unknown';
+                        const startStr = start ? start.toLocaleTimeString([],{hour:'2-digit', minute:'2-digit'}) : '--';
+                        const endStr = end ? end.toLocaleTimeString([],{hour:'2-digit', minute:'2-digit'}) : 'Active';
+                        
+                        let durationHrs = 0;
+                        let barColor = '#3b82f6'; 
+                        let barWidth = '0%';
+                        if(start && end) {
+                            durationHrs = (end - start) / 3600000;
+                            const pct = Math.min((durationHrs / 12) * 100, 100);
+                            barWidth = pct + '%';
+                            if(durationHrs > 10) barColor = '#ef4444'; else if(durationHrs > 8) barColor = '#fbbf24'; else barColor = '#10b981';
+                        }
+                        const regionDisplay = getRegionName(d.site || d.region || 'N/A');
+
+                        html += `
+                        <tr class="hover:bg-slate-900 transition border-b border-slate-800">
+                            <td class="p-4"><div class="font-bold text-white">${dateStr}</div><div class="text-xs text-slate-500">${startStr} - ${endStr}</div></td>
+                            <td class="p-4 w-1/4"><div class="flex justify-between text-xs mb-1 text-slate-300"><span>${durationHrs.toFixed(1)} hrs</span></div><div class="h-2 bg-slate-800 rounded-full overflow-hidden"><div style="width: ${barWidth}; background-color: ${barColor}" class="h-full rounded-full"></div></div></td>
+                            <td class="p-4 text-slate-400 font-mono text-sm">${d.vehicle || '-'}</td>
+                            <td class="p-4 text-emerald-400 text-sm">${regionDisplay}</td>
+                            <td class="p-4"><input type="text" placeholder="Add note..." class="bg-transparent border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none w-full text-sm text-slate-300 transition" value="${d.note || ''}" onblur="saveHistoryNote('${driverId}', '${doc.id}', this.value)"></td>
+                        </tr>`;
+                    });
+                    tbody.innerHTML = html;
+                });
+        }
+
+        async function saveHistoryNote(driverId, tripId, note) {
+            try { await db.collection(COLLECTIONS.ROSTER).doc(driverId).collection("shiftHistory").doc(tripId).update({ note: note }); } catch(e) { console.error(e); }
+        }
+
+        function switchEditorTab(tab) {
+            document.getElementById('tab-content-settings').classList.add('hidden');
+            document.getElementById('tab-content-history').classList.add('hidden');
+            document.getElementById('tab-btn-settings').classList.remove('active');
+            document.getElementById('tab-btn-history').classList.remove('active');
+            document.getElementById(`tab-content-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-btn-${tab}`).classList.add('active');
+        }
+
+        function checkActiveStateInEditor(id) {
+            const isActive = activeData.some(d => d.id === id);
+            document.getElementById('editActiveBadge').classList.toggle('hidden', !isActive);
+            document.getElementById('btnForceSignOut').classList.toggle('hidden', !isActive);
+        }
+
+        async function saveProfile() {
+            if(!currentEditId) return;
+            const updates = {
+                name: document.getElementById('editName').value,
+                vehicle: document.getElementById('editVehicle').value,
+                alert_note: document.getElementById('editNotes').value,
+                default_region: document.getElementById('editRegion').value,
+                schedule: {}
+            };
+            daysOfWeek.forEach(day => {
+                const val = document.getElementById(`sched_${day}`).value;
+                if(val) updates.schedule[day] = val;
+            });
+            await db.collection(COLLECTIONS.ROSTER).doc(currentEditId).set(updates, { merge: true });
+            alert("Saved");
+        }
+
+        async function forceSignOutCurrent() {
+            if(currentEditId && confirm(`Force sign out ${currentEditId}?`)) await db.collection(COLLECTIONS.ACTIVE).doc(currentEditId).delete();
+        }
+
+        function openAddRegionModal() {
+            document.getElementById('inputRegionId').value = '';
+            document.getElementById('inputRegionName').value = '';
+            document.getElementById('regionModal').classList.remove('hidden');
+        }
+        async function saveNewRegion() {
+            const id = document.getElementById('inputRegionId').value.trim();
+            const name = document.getElementById('inputRegionName').value.trim();
+            if(!id || !name) return alert("Required");
+            await db.collection(COLLECTIONS.REGIONS).doc(id).set({ name, created_at: new Date() });
+            document.getElementById('regionModal').classList.add('hidden');
+        }
+        async function deleteRegion(id) {
+            if(confirm("Delete?")) await db.collection(COLLECTIONS.REGIONS).doc(id).delete();
+        }
+        async function emergencyPurge() { alert("Purge disabled."); }
+
+        switchTab('dashboard');
+    </script>
+</body>
+</html>
