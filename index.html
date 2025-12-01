@@ -1,34 +1,48 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950">
+<html lang="en" class="h-full bg-gray-50 text-slate-900 antialiased">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fleet Command | Admin Console</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                    colors: {
+                        brand: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-    
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
-    
+
     <style>
         [x-cloak] { display: none !important; }
-        .custom-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
-        .custom-scroll::-webkit-scrollbar-track { background: #0f172a; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
-        .nav-item.active { background-color: #1e293b; color: #fff; border-right: 3px solid #3b82f6; }
-        .editor-tab.active { border-bottom: 2px solid #3b82f6; color: white; }
-        .editor-tab { color: #64748b; border-bottom: 2px solid transparent; }
-        .editor-tab:hover { color: #94a3b8; }
+        
+        /* Light Mode Scrollbar */
+        .headless-scroll::-webkit-scrollbar { width: 6px; height: 6px; }
+        .headless-scroll::-webkit-scrollbar-track { background: transparent; }
+        .headless-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        .headless-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
     </style>
 </head>
-<body x-data="app()" x-init="initApp()" class="flex h-full overflow-hidden text-slate-200 selection:bg-blue-500 selection:text-white">
+
+<body x-data="fleetApp()" x-init="initApp()" class="flex h-full overflow-hidden">
 
     <script>
         // -----------------------------------------------------------
         // ⚠️ PASTE YOUR FIREBASE CONFIG HERE
         // -----------------------------------------------------------
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyB-P87cAnvDHpCoPocqhjHE9zGaDQXxe2U",
   authDomain: "balance-t.firebaseapp.com",
@@ -52,135 +66,198 @@ const firebaseConfig = {
         };
     </script>
 
-    <aside class="w-72 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0 z-20">
-        <div class="h-16 flex items-center px-6 border-b border-slate-800 bg-slate-900/50">
-            <h1 class="text-lg font-bold text-white tracking-tight">FLEET COMMAND</h1>
+    <div x-show="mobileMenuOpen" x-transition.opacity class="fixed inset-0 z-40 bg-slate-900/50 backdrop-blur-sm lg:hidden" @click="mobileMenuOpen = false"></div>
+
+    <aside class="fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200 transform transition-transform duration-300 lg:static lg:translate-x-0 flex flex-col shadow-lg lg:shadow-none"
+           :class="mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'">
+        
+        <div class="h-16 flex items-center px-6 border-b border-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center shadow-md shadow-blue-200">
+                    <span class="text-white font-bold text-lg">F</span>
+                </div>
+                <h1 class="text-lg font-bold tracking-tight text-slate-900">Fleet Command</h1>
+            </div>
+            <button @click="mobileMenuOpen = false" class="ml-auto lg:hidden text-slate-400">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
         </div>
 
-        <nav class="flex-1 overflow-y-auto custom-scroll py-6 px-3 space-y-1">
-            <button @click="currentTab = 'dashboard'; dashboardView = 'grid'" 
-                    :class="currentTab === 'dashboard' && dashboardView === 'grid' ? 'bg-blue-600/10 text-blue-400 border-blue-600' : 'text-slate-400 hover:bg-slate-800 hover:text-white border-transparent'" 
-                    class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg border-l-4 transition-all">
-                <span>📍 Fleet Overview</span>
-            </button>
+        <nav class="flex-1 overflow-y-auto headless-scroll py-6 px-3 space-y-1">
             
-            <div x-show="currentTab === 'dashboard'" x-transition class="pl-11 pr-2 space-y-1 pb-4">
+            <button @click="currentTab = 'dashboard'; mobileMenuOpen = false"
+                    class="w-full group flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-lg transition-all"
+                    :class="currentTab === 'dashboard' ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'">
+                <div class="flex items-center gap-3">
+                    <svg class="w-5 h-5 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                    Overview
+                </div>
+                <span x-show="filteredDrivers.length > 0" class="bg-white border border-slate-200 px-2 py-0.5 rounded text-xs font-mono text-slate-600 shadow-sm" x-text="filteredDrivers.length"></span>
+            </button>
+
+            <div x-show="currentTab === 'dashboard'" x-transition class="pl-10 pr-2 space-y-1 pt-1 pb-4">
+                <button @click="setDashboardFilter('All')" 
+                        class="block w-full text-left text-xs py-2 px-3 rounded-md transition border-l-2"
+                        :class="dashboardFilter === 'All' ? 'border-brand-500 text-brand-700 bg-brand-50/50' : 'border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-400'">
+                    All Regions
+                </button>
                 <template x-for="region in regions" :key="region.id">
-                    <button @click="setDashboardFilter(region.id)" 
-                            :class="dashboardFilter === region.id && dashboardView === 'list' ? 'text-white font-semibold' : 'text-slate-500 hover:text-slate-300'" 
-                            class="block w-full text-left text-xs py-1.5 transition flex justify-between group">
+                    <button @click="setDashboardFilter(region.id)"
+                            class="block w-full text-left text-xs py-2 px-3 rounded-md transition border-l-2 flex justify-between items-center"
+                            :class="dashboardFilter === region.id ? 'border-brand-500 text-brand-700 bg-brand-50/50' : 'border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-400'">
                         <span x-text="region.name"></span>
-                        <span x-show="getRegionCount(region.id) > 0" class="text-[10px] bg-slate-800 px-1.5 rounded text-slate-400 group-hover:text-white" x-text="getRegionCount(region.id)"></span>
+                        <span x-show="getRegionCount(region.id) > 0" class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                     </button>
                 </template>
             </div>
 
-            <button @click="currentTab = 'profiles'" :class="currentTab === 'profiles' ? 'bg-blue-600/10 text-blue-400 border-blue-600' : 'text-slate-400 hover:bg-slate-800 hover:text-white border-transparent'" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg border-l-4 transition-all">
-                <span>👥 Fleet Roster</span>
+            <button @click="currentTab = 'profiles'; mobileMenuOpen = false"
+                    class="w-full group flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all"
+                    :class="currentTab === 'profiles' ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'">
+                <svg class="w-5 h-5 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                Fleet Roster
             </button>
-            <button @click="currentTab = 'export'" :class="currentTab === 'export' ? 'bg-blue-600/10 text-blue-400 border-blue-600' : 'text-slate-400 hover:bg-slate-800 hover:text-white border-transparent'" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg border-l-4 transition-all">
-                <span>📉 Reports</span>
+
+            <button @click="currentTab = 'export'; mobileMenuOpen = false"
+                    class="w-full group flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all"
+                    :class="currentTab === 'export' ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'">
+                <svg class="w-5 h-5 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                Data Export
             </button>
-            <button @click="currentTab = 'settings'" :class="currentTab === 'settings' ? 'bg-blue-600/10 text-blue-400 border-blue-600' : 'text-slate-400 hover:bg-slate-800 hover:text-white border-transparent'" class="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg border-l-4 transition-all">
-                <span>⚙️ Admin</span>
+
+            <button @click="currentTab = 'settings'; mobileMenuOpen = false"
+                    class="w-full group flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all"
+                    :class="currentTab === 'settings' ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'">
+                <svg class="w-5 h-5 opacity-75" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                Settings
             </button>
         </nav>
-        
-        <div class="p-4 bg-slate-950/50 border-t border-slate-800">
-            <div class="flex items-center gap-2">
-                <span class="relative flex h-2 w-2"><span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span></span>
-                <span class="text-[10px] font-mono text-slate-500 uppercase tracking-wider">System Online</span>
+
+        <div class="p-4 border-t border-slate-200">
+            <div class="flex items-center gap-2 text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                Online
             </div>
         </div>
     </aside>
 
-    <main class="flex-1 flex flex-col h-full overflow-hidden relative">
+    <main class="flex-1 flex flex-col h-full overflow-hidden relative bg-gray-50">
+        
+        <div class="lg:hidden h-16 flex items-center justify-between px-6 border-b border-slate-200 bg-white">
+            <span class="font-bold text-slate-900">Fleet Command</span>
+            <button @click="mobileMenuOpen = true" class="text-slate-500">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        </div>
 
-        <div x-show="currentTab === 'dashboard'" class="flex-1 flex flex-col h-full overflow-hidden">
+        <div x-show="currentTab === 'dashboard'" x-transition class="flex-1 flex flex-col h-full overflow-hidden">
             
-            <div x-show="dashboardView === 'grid'" class="flex-1 overflow-y-auto custom-scroll p-8">
-                <h2 class="text-2xl font-bold text-white mb-2">Operations Overview</h2>
-                <p class="text-slate-500 text-sm mb-8">Select a region to view live details.</p>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    <template x-for="stat in regionGridData" :key="stat.id">
-                        <div @click="setDashboardFilter(stat.id)" 
-                             class="bg-slate-900 border border-slate-800 hover:border-blue-500/50 hover:bg-slate-800/50 rounded-xl p-6 cursor-pointer transition-all duration-200 group relative overflow-hidden">
-                            
-                            <div class="flex justify-between items-start mb-4 relative z-10">
-                                <h3 class="text-lg font-bold text-white group-hover:text-blue-400 transition" x-text="stat.name"></h3>
-                                <div class="bg-slate-950/50 rounded-lg px-2 py-1 border border-slate-700/50">
-                                    <span class="text-xs font-mono text-slate-400" x-text="stat.id"></span>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-2 gap-4 mb-4 relative z-10">
-                                <div>
-                                    <div class="text-3xl font-bold text-white" x-text="stat.count"></div>
-                                    <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mt-1">Active</div>
-                                </div>
-                                <div class="text-right">
-                                    <div class="text-3xl font-bold text-emerald-400" x-text="stat.hours.toFixed(1)"></div>
-                                    <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mt-1">Total Hrs</div>
-                                </div>
-                            </div>
-
-                            <div class="w-full bg-slate-950 rounded-full h-2 mb-2 relative z-10 overflow-hidden">
-                                <div class="h-full rounded-full bg-gradient-to-r from-blue-600 to-emerald-500" :style="`width: ${Math.min((stat.count / 20) * 100, 100)}%`"></div>
-                            </div>
-                            
-                            <div class="absolute inset-0 bg-gradient-to-br from-blue-600/5 to-emerald-600/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        </div>
-                    </template>
-
-                    <div x-show="regionGridData.length === 0" class="col-span-full p-12 text-center border border-dashed border-slate-800 rounded-xl text-slate-500">
-                        No regions configured. Go to Admin to add regions.
+            <div class="bg-white border-b border-slate-200 p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shrink-0 shadow-sm z-10">
+                <div class="flex items-center gap-3">
+                    <button x-show="dashboardView === 'list'" @click="setDashboardFilter('All'); dashboardView='grid'" class="p-2 rounded-lg hover:bg-gray-100 text-slate-500 hover:text-slate-900 transition" x-cloak>
+                        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
+                    </button>
+                    <div>
+                        <h2 class="text-2xl font-bold text-slate-900 tracking-tight" x-text="dashboardFilter === 'All' ? 'Global Operations' : getRegionName(dashboardFilter)"></h2>
+                        <p class="text-sm text-slate-500" x-text="dashboardView === 'grid' ? 'Region Overview' : 'Live Driver List'"></p>
                     </div>
                 </div>
             </div>
 
-            <div x-show="dashboardView === 'list'" class="flex-1 flex flex-col h-full">
-                <div class="bg-slate-900/50 border-b border-slate-800 p-6 flex justify-between items-center gap-4">
-                    <div class="flex items-center gap-4">
-                        <button @click="dashboardView = 'grid'" class="bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white px-3 py-2 rounded-lg border border-slate-700 transition flex items-center gap-2 text-sm font-bold">
-                            <span>←</span> Back
-                        </button>
-                        <div>
-                            <h2 class="text-2xl font-bold text-white" x-text="getRegionName(dashboardFilter)"></h2>
-                            <p class="text-sm text-slate-500">Live View</p>
+            <div x-show="dashboardView === 'grid'" x-transition class="flex-1 overflow-y-auto headless-scroll p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <template x-for="stat in regionGridData" :key="stat.id">
+                        <div @click="setDashboardFilter(stat.id)" 
+                             class="group relative bg-white rounded-xl border border-slate-200 p-6 hover:border-brand-300 hover:shadow-lg hover:shadow-brand-500/5 transition-all duration-300 cursor-pointer">
+                            
+                            <div class="flex justify-between items-start mb-6">
+                                <div>
+                                    <h3 class="text-lg font-bold text-slate-900 group-hover:text-brand-600 transition-colors" x-text="stat.name"></h3>
+                                    <div class="flex items-center gap-2 mt-1">
+                                        <span class="w-2 h-2 rounded-full" :class="stat.count > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'"></span>
+                                        <span class="text-xs font-medium text-slate-500" x-text="stat.count > 0 ? 'Online' : 'Offline'"></span>
+                                    </div>
+                                </div>
+                                <div class="bg-gray-50 rounded-lg px-2.5 py-1 border border-slate-200">
+                                    <span class="text-xs font-mono text-slate-500" x-text="stat.id"></span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                                <div>
+                                    <div class="text-3xl font-bold text-slate-900 tracking-tight" x-text="stat.count"></div>
+                                    <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider mt-0.5">Drivers</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-3xl font-bold text-brand-600 tracking-tight" x-text="stat.hours.toFixed(1)"></div>
+                                    <div class="text-[10px] uppercase font-bold text-slate-400 tracking-wider mt-0.5">Hours</div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 shadow-lg">
-                        <div class="text-xs text-slate-500 uppercase font-bold tracking-wider">Drivers</div>
-                        <div class="text-2xl font-bold text-white leading-none mt-1" x-text="filteredDrivers.length">--</div>
+                    </template>
+                </div>
+            </div>
+
+            <div x-show="dashboardView === 'list'" x-cloak class="flex-1 flex flex-col overflow-hidden">
+                <div class="px-6 pt-6 shrink-0 bg-gray-50">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase mb-3 flex items-center gap-2">Live Shift Hours</h3>
+                    <div class="flex gap-4 overflow-x-auto headless-scroll pb-2">
+                        <template x-for="(hours, regionName) in regionStats" :key="regionName">
+                            <div class="bg-white border border-slate-200 rounded-lg px-4 py-2 min-w-[140px] shrink-0 shadow-sm">
+                                <div class="text-[10px] text-slate-400 uppercase font-bold truncate" x-text="regionName"></div>
+                                <div class="text-xl font-bold text-slate-900"><span x-text="hours.toFixed(1)"></span> <span class="text-xs text-slate-400 font-normal">hrs</span></div>
+                            </div>
+                        </template>
                     </div>
                 </div>
 
-                <div class="flex-1 overflow-y-auto p-6 custom-scroll">
-                    <div class="bg-slate-900 rounded-xl overflow-hidden shadow-lg border border-slate-800">
+                <div class="flex-1 overflow-y-auto headless-scroll p-6">
+                    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                         <table class="w-full text-left border-collapse">
-                            <thead class="bg-slate-950 text-slate-400 text-xs uppercase font-bold tracking-wider border-b border-slate-800">
+                            <thead class="bg-gray-50 text-slate-500 text-xs uppercase font-bold tracking-wider border-b border-slate-200">
                                 <tr>
-                                    <th class="p-4">Driver Name</th>
-                                    <th class="p-4">Vehicle</th>
-                                    <th class="p-4 text-right">Shift Progress</th>
-                                    <th class="p-4 text-right">Duration</th>
-                                    <th class="p-4 text-center">Status</th>
+                                    <th class="p-5">Driver</th>
+                                    <th class="p-5">Vehicle</th>
+                                    <th class="p-5 text-right">Progress</th>
+                                    <th class="p-5 text-right">Duration</th>
+                                    <th class="p-5 text-center">Status</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-slate-800/50 text-sm">
+                            <tbody class="divide-y divide-slate-100 text-sm">
                                 <template x-for="driver in filteredDrivers" :key="driver.id">
-                                    <tr class="hover:bg-slate-800/50 transition duration-150" :style="getProgressStyle(driver)">
-                                        <td class="p-4 font-bold text-white" x-text="getDriverName(driver.id)"></td>
-                                        <td class="p-4 text-blue-300 font-mono" x-text="driver.vehicle_number || 'N/A'"></td>
-                                        <td class="p-4 text-right text-slate-400 font-mono">
-                                            <div class="flex flex-col items-end"><span class="text-white" x-text="formatTime(driver.login_time)"></span><span class="text-[10px] text-slate-600 uppercase">Start</span></div>
+                                    <tr class="hover:bg-brand-50/50 transition duration-150 relative">
+                                        <td colspan="5" class="absolute inset-0 pointer-events-none opacity-[0.03]" :style="getProgressStyle(driver, true)"></td>
+                                        
+                                        <td class="p-5 font-medium text-slate-900 relative z-10">
+                                            <div x-text="getDriverName(driver.id)"></div>
+                                            <div class="text-xs text-slate-400 font-normal" x-show="!getDriverName(driver.id)" x-text="'ID: ' + driver.id"></div>
                                         </td>
-                                        <td class="p-4 text-right text-white font-mono" x-text="calculateDuration(driver.login_time)"></td>
-                                        <td class="p-4 text-center"><span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span></td>
+                                        <td class="p-5 relative z-10">
+                                            <span class="bg-white border border-slate-200 rounded px-2 py-1 font-mono text-slate-600 text-xs shadow-sm" x-text="driver.vehicle_number || '---'"></span>
+                                        </td>
+                                        <td class="p-5 text-right relative z-10">
+                                            <div class="flex flex-col items-end">
+                                                <span class="text-slate-900 font-mono" x-text="formatTime(driver.login_time)"></span>
+                                                <span class="text-[10px] text-slate-400 uppercase">Started</span>
+                                            </div>
+                                        </td>
+                                        <td class="p-5 text-right text-slate-900 font-mono font-bold relative z-10" x-text="calculateDuration(driver.login_time)"></td>
+                                        <td class="p-5 text-center relative z-10">
+                                            <div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Active
+                                            </div>
+                                        </td>
                                     </tr>
                                 </template>
-                                <tr x-show="filteredDrivers.length === 0"><td colspan="5" class="p-12 text-center text-slate-500 italic">No active drivers in this region.</td></tr>
+                                <tr x-show="filteredDrivers.length === 0">
+                                    <td colspan="5" class="p-16 text-center">
+                                        <div class="text-slate-400 mb-2">No active drivers found.</div>
+                                        <button @click="dashboardView = 'grid'; setDashboardFilter('All')" class="text-brand-600 text-sm hover:underline">Return to Overview</button>
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -188,116 +265,119 @@ const firebaseConfig = {
             </div>
         </div>
 
-        <div x-show="currentTab === 'profiles'" class="flex-1 flex h-full">
-            <div class="w-80 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
-                <div class="p-4 border-b border-slate-800 space-y-4">
-                    <div class="flex justify-between items-center">
-                        <h3 class="font-bold text-white">Driver Database</h3>
-                        <span class="text-xs text-slate-500" x-text="filteredRoster.length + ' Drivers'"></span>
-                    </div>
+        <div x-show="currentTab === 'profiles'" x-cloak class="flex-1 flex h-full divide-x divide-slate-200">
+            <div class="w-80 flex flex-col shrink-0 bg-white">
+                <div class="p-4 border-b border-slate-200 space-y-3 bg-gray-50/50">
                     <div class="relative">
-                        <input type="text" x-model="searchQuery" placeholder="Search drivers..." class="w-full bg-slate-950 border border-slate-700 rounded-lg py-2 pl-3 pr-10 text-sm text-white placeholder-slate-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition">
+                        <svg class="absolute left-3 top-2.5 w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                        <input type="text" x-model="searchQuery" placeholder="Search drivers..." class="w-full bg-white border border-slate-300 rounded-lg py-2 pl-9 pr-4 text-sm text-slate-900 placeholder-slate-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none shadow-sm transition">
+                    </div>
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" @click.outside="open = false" class="w-full flex justify-between items-center bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 hover:border-slate-400 shadow-sm transition">
+                            <span x-text="rosterRegionFilter === 'All' ? 'All Regions' : getRegionName(rosterRegionFilter)"></span>
+                            <svg class="w-4 h-4 text-slate-400 transition-transform" :class="open ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        </button>
+                        <div x-show="open" x-transition class="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto custom-scroll">
+                            <button @click="rosterRegionFilter = 'All'; open = false" class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-gray-50">All Regions</button>
+                            <template x-for="r in regions" :key="r.id">
+                                <button @click="rosterRegionFilter = r.id; open = false" class="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-gray-50" x-text="r.name"></button>
+                            </template>
+                        </div>
                     </div>
                 </div>
-                <div class="flex-1 overflow-y-auto custom-scroll p-2 space-y-1">
+                <div class="flex-1 overflow-y-auto headless-scroll p-2 space-y-1">
                     <template x-for="driver in filteredRoster" :key="driver.id">
-                        <div @click="selectDriver(driver.id)" class="p-3 rounded-lg cursor-pointer transition group border-l-2" :class="selectedDriverId === driver.id ? 'bg-blue-600/20 border-blue-500' : 'bg-slate-800/30 border-transparent hover:bg-slate-800'">
-                            <div class="flex justify-between items-center mb-1">
-                                <div class="font-bold text-sm text-white" x-text="driver.name || driver.id"></div>
-                                <div class="text-[10px] text-slate-500" x-text="getRegionName(getDriverRegionID(driver))"></div>
+                        <button @click="selectDriver(driver.id)" class="w-full text-left p-3 rounded-lg transition-all border-l-2 group" :class="selectedDriverId === driver.id ? 'bg-brand-50 border-brand-500 shadow-sm' : 'bg-transparent border-transparent hover:bg-gray-50'">
+                            <div class="flex justify-between items-center mb-0.5">
+                                <span class="font-bold text-sm text-slate-900" x-text="driver.name || driver.id"></span>
+                                <span class="text-[10px] text-slate-400 uppercase tracking-wider" x-text="getRegionName(getDriverRegionID(driver))"></span>
                             </div>
                             <div class="text-xs text-slate-500 font-mono" x-text="'ID: ' + driver.id"></div>
-                        </div>
+                        </button>
                     </template>
                 </div>
             </div>
 
-            <div class="flex-1 bg-slate-950 flex flex-col relative overflow-hidden">
-                <div x-show="!selectedDriverId" class="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
-                    <span class="text-6xl mb-4">👤</span>
-                    <p>Select a driver to view details</p>
+            <div class="flex-1 flex flex-col h-full bg-white relative">
+                <div x-show="!selectedDriverId" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                    <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                        <svg class="w-8 h-8 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                    </div>
+                    <p>Select a driver to view profile</p>
                 </div>
 
                 <div x-show="selectedDriverId" class="flex flex-col h-full">
-                    <div class="p-8 border-b border-slate-800 bg-slate-900/50">
+                    <div class="px-8 py-6 border-b border-slate-200 bg-gray-50/50">
                         <div class="flex justify-between items-start">
                             <div>
-                                <h2 class="text-2xl font-bold text-white" x-text="editForm.name || 'Driver ' + selectedDriverId"></h2>
-                                <p class="text-xs text-slate-500 font-mono mt-1" x-text="'ID: ' + selectedDriverId"></p>
-                            </div>
-                            <div x-show="isActive(selectedDriverId)" class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-2">
-                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Active Now
+                                <h2 class="text-2xl font-bold text-slate-900" x-text="editForm.name || 'Driver ' + selectedDriverId"></h2>
+                                <div class="flex items-center gap-2 mt-1">
+                                    <span class="text-xs font-mono text-slate-500 px-2 py-0.5 bg-white rounded border border-slate-200" x-text="selectedDriverId"></span>
+                                    <span x-show="isActive(selectedDriverId)" class="text-xs text-emerald-600 font-bold flex items-center gap-1"><span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span> Active Now</span>
+                                </div>
                             </div>
                         </div>
-                        <div class="flex gap-8 mt-8 border-b border-slate-800/50">
-                            <button @click="editorTab = 'settings'" :class="editorTab === 'settings' ? 'text-blue-400 border-blue-500' : 'text-slate-400 border-transparent hover:text-white'" class="pb-3 text-sm font-bold uppercase tracking-wide border-b-2 transition">Settings</button>
-                            <button @click="editorTab = 'history'" :class="editorTab === 'history' ? 'text-blue-400 border-blue-500' : 'text-slate-400 border-transparent hover:text-white'" class="pb-3 text-sm font-bold uppercase tracking-wide border-b-2 transition">Trip History</button>
+                        <div class="flex gap-6 mt-8 border-b border-slate-200 -mb-px">
+                            <button @click="editorTab = 'settings'" class="pb-3 text-sm font-bold uppercase tracking-wide border-b-2 transition-colors" :class="editorTab === 'settings' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-800'">Settings</button>
+                            <button @click="editorTab = 'history'" class="pb-3 text-sm font-bold uppercase tracking-wide border-b-2 transition-colors" :class="editorTab === 'history' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-500 hover:text-slate-800'">Trip Logs</button>
                         </div>
                     </div>
 
-                    <div class="flex-1 overflow-y-auto custom-scroll p-8">
-                        
-                        <div x-show="editorTab === 'settings'" class="max-w-3xl space-y-6">
+                    <div class="flex-1 overflow-y-auto headless-scroll p-8">
+                        <div x-show="editorTab === 'settings'" class="max-w-2xl space-y-6">
                             <div class="grid grid-cols-2 gap-6">
-                                <div><label class="block text-xs uppercase text-slate-500 font-bold mb-1">Full Name</label><input type="text" x-model="editForm.name" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-blue-500 outline-none"></div>
-                                <div><label class="block text-xs uppercase text-slate-500 font-bold mb-1">Default Vehicle</label><input type="text" x-model="editForm.vehicle" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-blue-500 outline-none"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1.5">Full Name</label><input type="text" x-model="editForm.name" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none shadow-sm transition"></div>
+                                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1.5">Default Vehicle</label><input type="text" x-model="editForm.vehicle" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none shadow-sm transition"></div>
                             </div>
                             <div>
-                                <label class="block text-xs uppercase text-slate-500 font-bold mb-1">Assigned Region</label>
-                                <select x-model="editForm.region" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-blue-500 outline-none">
-                                    <option value="">-- Select Region --</option>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1.5">Home Region</label>
+                                <select x-model="editForm.region" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:border-brand-500 outline-none shadow-sm transition">
+                                    <option value="">-- Select --</option>
                                     <template x-for="r in regions" :key="r.id"><option :value="r.id" x-text="r.name"></option></template>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs uppercase text-red-400 font-bold mb-1">Alert / Notes</label>
-                                <textarea x-model="editForm.note" class="w-full bg-slate-800 border border-slate-700 rounded p-3 text-white focus:border-red-500 outline-none h-24"></textarea>
+                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1.5">Alert Note</label>
+                                <textarea x-model="editForm.note" class="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-slate-900 focus:border-red-500 focus:ring-1 focus:ring-red-500 outline-none shadow-sm transition h-24"></textarea>
                             </div>
-                            <div class="pt-6 border-t border-slate-800 flex justify-between items-center">
-                                <button x-show="isActive(selectedDriverId)" @click="forceSignOut()" class="text-red-400 text-sm font-bold hover:text-red-300">⛔ Force Sign Out</button>
-                                <button @click="saveDriver()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-6 rounded shadow-lg transition">Save Changes</button>
+                            <div class="pt-6 border-t border-slate-100 flex justify-between items-center">
+                                <button x-show="isActive(selectedDriverId)" @click="forceSignOut()" class="text-red-500 text-sm font-bold hover:text-red-600 transition flex items-center gap-2">Force Sign Out</button>
+                                <button @click="saveDriver()" class="ml-auto bg-brand-600 hover:bg-brand-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg transition transform active:scale-95">Save Changes</button>
                             </div>
                         </div>
 
                         <div x-show="editorTab === 'history'">
-                            <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 mb-6">
+                            <div class="bg-white border border-slate-200 rounded-xl p-6 mb-6 shadow-sm">
                                 <div class="flex justify-between items-end mb-4">
-                                    <h3 class="text-sm font-bold text-slate-400 uppercase tracking-wider">Last 7 Days Activity</h3>
-                                    <div class="text-2xl font-bold text-white">
-                                        <span x-text="weeklyStats.total.toFixed(1)"></span> <span class="text-sm text-slate-500 font-normal">hrs total</span>
-                                    </div>
+                                    <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Weekly Activity</h3>
+                                    <div class="text-2xl font-bold text-slate-900"><span x-text="weeklyStats.total.toFixed(1)"></span><span class="text-sm text-slate-400 ml-1 font-normal">hours</span></div>
                                 </div>
-                                <div class="flex items-end justify-between h-32 gap-2">
+                                <div class="flex items-end justify-between h-24 gap-2">
                                     <template x-for="day in weeklyStats.days">
-                                        <div class="flex flex-col items-center w-full gap-2 group relative h-full justify-end">
-                                           <div x-show="day.hours > 0" class="absolute -top-8 bg-slate-800 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition shadow-lg border border-slate-700" x-text="day.hours.toFixed(1) + 'h'"></div>
-                                           <div class="w-full bg-slate-800/50 rounded-sm relative flex-1 flex items-end overflow-hidden" style="height: 100%">
-                                               <div class="w-full rounded-sm transition-all duration-700" :class="day.hours > 8 ? 'bg-emerald-500' : 'bg-blue-600'" :style="'height: ' + day.pct + '%'"></div>
-                                           </div>
-                                           <span class="text-[10px] text-slate-500 uppercase font-bold" x-text="day.label"></span>
+                                        <div class="flex flex-col items-center w-full h-full justify-end group">
+                                            <div class="w-full bg-gray-100 rounded-sm relative flex-1 flex items-end overflow-hidden">
+                                                <div class="w-full rounded-sm transition-all duration-700" :class="day.hours > 8 ? 'bg-emerald-500' : 'bg-brand-500'" :style="'height: ' + day.pct + '%'"></div>
+                                            </div>
+                                            <span class="text-[10px] text-slate-400 uppercase font-bold mt-2" x-text="day.label"></span>
                                         </div>
                                     </template>
                                 </div>
                             </div>
-
-                            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
+                            <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
                                 <table class="w-full text-left text-sm">
-                                    <thead class="bg-slate-950 text-slate-400 text-xs uppercase border-b border-slate-800">
-                                        <tr><th class="p-4">Date</th><th class="p-4">Duration</th><th class="p-4">Vehicle</th><th class="p-4">Site</th><th class="p-4 w-1/3">Notes</th></tr>
-                                    </thead>
-                                    <tbody class="divide-y divide-slate-800">
+                                    <thead class="bg-gray-50 text-slate-500 text-xs uppercase font-bold border-b border-slate-200"><tr><th class="p-4">Date</th><th class="p-4">Duration</th><th class="p-4">Site</th><th class="p-4 w-1/3">Note</th></tr></thead>
+                                    <tbody class="divide-y divide-slate-100">
                                         <template x-for="log in driverHistory" :key="log.id">
-                                            <tr class="hover:bg-slate-900/50">
-                                                <td class="p-4"><div class="font-bold text-white" x-text="formatDate(log.login_time)"></div><div class="text-xs text-slate-500" x-text="formatTimeRange(log.login_time, log.logout_time)"></div></td>
+                                            <tr class="hover:bg-gray-50">
+                                                <td class="p-4"><div class="font-bold text-slate-900" x-text="formatDate(log.login_time)"></div><div class="text-xs text-slate-500" x-text="formatTimeRange(log.login_time, log.logout_time)"></div></td>
                                                 <td class="p-4">
                                                     <div class="flex items-center gap-2">
-                                                        <div class="h-1.5 w-16 bg-slate-800 rounded-full overflow-hidden"><div class="h-full rounded-full" :class="getDurationColor(log.duration)" :style="'width: ' + Math.min(log.duration / 12 * 100, 100) + '%'"></div></div>
-                                                        <span class="text-xs text-slate-300" x-text="log.duration.toFixed(1) + ' hrs'"></span>
+                                                        <div class="h-1.5 w-16 bg-slate-200 rounded-full overflow-hidden"><div class="h-full rounded-full" :class="getDurationColor(log.duration)" :style="'width: ' + Math.min(log.duration / 12 * 100, 100) + '%'"></div></div>
+                                                        <span class="text-xs text-slate-600" x-text="log.duration.toFixed(1) + 'h'"></span>
                                                     </div>
                                                 </td>
-                                                <td class="p-4 text-slate-400 font-mono" x-text="log.vehicle"></td>
-                                                <td class="p-4 text-emerald-400" x-text="getRegionName(getDriverRegionID(log))"></td>
-                                                <td class="p-4"><input type="text" x-model="log.note" @blur="saveHistoryNote(log.id, log.note)" class="bg-transparent w-full text-slate-300 placeholder-slate-600 focus:outline-none border-b border-transparent focus:border-blue-500 transition" placeholder="Add note..."></td>
+                                                <td class="p-4 text-emerald-600 font-medium" x-text="getRegionName(getDriverRegionID(log))"></td>
+                                                <td class="p-4"><input type="text" x-model="log.note" @blur="saveHistoryNote(log.id, log.note)" class="bg-transparent w-full text-slate-600 placeholder-slate-400 focus:outline-none border-b border-transparent focus:border-brand-500 transition text-sm" placeholder="+ Add note"></td>
                                             </tr>
                                         </template>
                                     </tbody>
@@ -309,61 +389,51 @@ const firebaseConfig = {
             </div>
         </div>
 
-        <div x-show="currentTab === 'export'" class="flex-1 p-8 overflow-y-auto custom-scroll">
+        <div x-show="currentTab === 'export'" x-cloak class="flex-1 p-8 overflow-y-auto headless-scroll">
             <div class="max-w-4xl mx-auto">
-                <h2 class="text-2xl font-bold text-white mb-8 flex items-center gap-3"><span class="text-3xl">📉</span> Data Export Center</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl">
-                        <h3 class="text-xl font-bold text-blue-400 mb-2">Daily Fleet Log</h3>
-                        <p class="text-sm text-slate-400 mb-6">Download all shift logs for a specific day.</p>
+                <h2 class="text-2xl font-bold text-slate-900 mb-8 flex items-center gap-3">Data Export Center</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                        <h3 class="text-lg font-bold text-slate-900 mb-4">Daily Fleet Log</h3>
                         <div class="space-y-4">
-                            <div class="grid grid-cols-2 gap-4">
-                                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Date</label><input type="date" x-model="exportForm.dailyDate" class="w-full bg-slate-950 border border-slate-700 rounded p-2.5 text-white outline-none focus:border-blue-500"></div>
-                                <div>
-                                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Region</label>
-                                    <select x-model="exportForm.dailyRegion" class="w-full bg-slate-950 border border-slate-700 rounded p-2.5 text-white outline-none focus:border-blue-500">
-                                        <option value="All">All Regions</option>
-                                        <template x-for="r in regions" :key="r.id"><option :value="r.id" x-text="r.name"></option></template>
-                                    </select>
-                                </div>
-                            </div>
-                            <button @click="generateDailyReport" :disabled="isExporting" class="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3 rounded transition flex justify-center items-center gap-2"><span x-show="!isExporting">⬇️ Download Report</span><span x-show="isExporting">Processing...</span></button>
+                            <input type="date" x-model="exportForm.dailyDate" class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 shadow-sm">
+                            <select x-model="exportForm.dailyRegion" class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 shadow-sm">
+                                <option value="All">All Regions</option>
+                                <template x-for="r in regions" :key="r.id"><option :value="r.id" x-text="r.name"></option></template>
+                            </select>
+                            <button @click="generateDailyReport" :disabled="isExporting" class="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-lg transition shadow-md">Download Report</button>
                         </div>
                     </div>
-                    <div class="bg-slate-900 border border-slate-800 rounded-xl p-8 shadow-xl">
-                        <h3 class="text-xl font-bold text-emerald-400 mb-2">Driver History</h3>
-                        <p class="text-sm text-slate-400 mb-6">Export timesheets for a single driver.</p>
+                    <div class="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+                        <h3 class="text-lg font-bold text-slate-900 mb-4">Driver History</h3>
                         <div class="space-y-4">
-                            <div>
-                                <label class="block text-xs font-bold text-slate-500 uppercase mb-1">Driver</label>
-                                <select x-model="exportForm.driverId" class="w-full bg-slate-950 border border-slate-700 rounded p-2.5 text-white outline-none focus:border-emerald-500">
-                                    <option value="">-- Select Driver --</option>
-                                    <template x-for="d in roster" :key="d.id"><option :value="d.id" x-text="d.name || d.id"></option></template>
-                                </select>
+                            <select x-model="exportForm.driverId" class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 shadow-sm">
+                                <option value="">Select Driver</option>
+                                <template x-for="d in roster" :key="d.id"><option :value="d.id" x-text="d.name || d.id"></option></template>
+                            </select>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="date" x-model="exportForm.startDate" class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 shadow-sm">
+                                <input type="date" x-model="exportForm.endDate" class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 shadow-sm">
                             </div>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Start</label><input type="date" x-model="exportForm.startDate" class="w-full bg-slate-950 border border-slate-700 rounded p-2.5 text-white outline-none focus:border-emerald-500"></div>
-                                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">End</label><input type="date" x-model="exportForm.endDate" class="w-full bg-slate-950 border border-slate-700 rounded p-2.5 text-white outline-none focus:border-emerald-500"></div>
-                            </div>
-                            <button @click="generateDriverReport" :disabled="isExporting" class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3 rounded transition flex justify-center items-center gap-2"><span x-show="!isExporting">⬇️ Download History</span><span x-show="isExporting">Processing...</span></button>
+                            <button @click="generateDriverReport" :disabled="isExporting" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-lg transition shadow-md">Download History</button>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div x-show="currentTab === 'settings'" class="flex-1 p-8 overflow-y-auto custom-scroll">
+        <div x-show="currentTab === 'settings'" x-cloak class="flex-1 p-8 overflow-y-auto headless-scroll">
             <div class="max-w-4xl mx-auto space-y-8">
-                <div class="bg-slate-900 border border-slate-800 rounded-xl p-8">
+                <div class="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="text-xl font-bold text-white">Region Management</h3>
-                        <button @click="regionModalOpen = true" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-4 rounded shadow-lg text-sm">+ Add Region</button>
+                        <h3 class="text-xl font-bold text-slate-900">Region Management</h3>
+                        <button @click="regionModalOpen = true" class="bg-brand-600 hover:bg-brand-500 text-white font-bold py-2 px-4 rounded-lg text-sm shadow-md transition">+ Add Region</button>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <template x-for="r in regions" :key="r.id">
-                            <div class="bg-slate-800 border border-slate-700 p-4 rounded-lg flex justify-between items-center">
-                                <div><div class="font-bold text-white" x-text="r.name"></div><div class="text-xs text-slate-500 font-mono" x-text="r.id"></div></div>
-                                <button @click="deleteRegion(r.id)" class="text-red-400 hover:text-white text-xs font-bold">Delete</button>
+                            <div class="bg-gray-50 border border-slate-200 p-4 rounded-lg flex justify-between items-center">
+                                <div><div class="font-bold text-slate-900 text-sm" x-text="r.name"></div><div class="text-xs text-slate-500 font-mono" x-text="r.id"></div></div>
+                                <button @click="deleteRegion(r.id)" class="text-slate-400 hover:text-red-500 transition font-bold text-xs">Delete</button>
                             </div>
                         </template>
                     </div>
@@ -372,285 +442,139 @@ const firebaseConfig = {
         </div>
     </main>
 
-    <div x-show="regionModalOpen" x-cloak class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" @click="regionModalOpen = false"></div>
-        <div class="relative bg-slate-900 border border-slate-700 p-8 rounded-xl w-full max-w-md shadow-2xl" @click.stop>
-            <h2 class="text-xl font-bold text-white mb-6">Add Region</h2>
-            <div class="space-y-4">
-                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Webhook ID</label><input x-model="newRegion.id" type="text" class="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white"></div>
-                <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Display Name</label><input x-model="newRegion.name" type="text" class="w-full bg-slate-950 border border-slate-700 rounded p-3 text-white"></div>
-                <button @click="saveRegion()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded">Save Region</button>
+    <div x-show="regionModalOpen" x-cloak class="relative z-50">
+        <div x-show="regionModalOpen" x-transition.opacity class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm"></div>
+        <div class="fixed inset-0 z-10 w-screen overflow-y-auto">
+            <div class="flex min-h-full items-center justify-center p-4">
+                <div x-show="regionModalOpen" x-transition.scale.95 class="relative bg-white border border-slate-200 p-6 rounded-xl w-full max-w-md shadow-2xl">
+                    <h3 class="text-lg font-bold text-slate-900 mb-4">Add New Region</h3>
+                    <div class="space-y-4">
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Webhook ID</label><input x-model="newRegion.id" type="text" class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 shadow-sm"></div>
+                        <div><label class="block text-xs font-bold text-slate-500 uppercase mb-1">Display Name</label><input x-model="newRegion.name" type="text" class="w-full bg-white border border-slate-300 rounded-lg p-2.5 text-slate-900 shadow-sm"></div>
+                        <div class="flex gap-3 mt-6"><button @click="regionModalOpen = false" class="flex-1 bg-white border border-slate-300 hover:bg-gray-50 text-slate-700 font-bold py-2.5 rounded-lg transition">Cancel</button><button @click="saveRegion()" class="flex-1 bg-brand-600 hover:bg-brand-500 text-white font-bold py-2.5 rounded-lg transition shadow-md">Save Region</button></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        function app() {
+        function fleetApp() {
             return {
-                // State
-                currentTab: 'dashboard',
-                dashboardView: 'grid', // 'grid' or 'list'
-                dashboardFilter: 'All',
-                regions: [],
-                activeDrivers: [],
-                roster: [],
-                selectedDriverId: null,
-                editorTab: 'settings',
-                driverHistory: [],
-                regionModalOpen: false,
-                isExporting: false,
-                searchQuery: '',
-                editForm: { name: '', vehicle: '', note: '', region: '' },
+                currentTab: 'dashboard', dashboardView: 'grid', dashboardFilter: 'All', mobileMenuOpen: false,
+                regions: [], activeDrivers: [], roster: [], driverHistory: [],
+                selectedDriverId: null, editorTab: 'settings', regionModalOpen: false, isExporting: false,
+                searchQuery: '', editForm: { name: '', vehicle: '', note: '', region: '' },
                 newRegion: { id: '', name: '' },
-                exportForm: {
-                    dailyDate: new Date().toISOString().split('T')[0],
-                    dailyRegion: 'All',
-                    driverId: '',
-                    startDate: new Date(new Date().setDate(new Date().getDate()-7)).toISOString().split('T')[0],
-                    endDate: new Date().toISOString().split('T')[0]
-                },
+                exportForm: { dailyDate: new Date().toISOString().split('T')[0], dailyRegion: 'All', driverId: '', startDate: '', endDate: '' },
+                rosterRegionFilter: 'All',
 
-                // Computed
-                get filteredDrivers() {
-                    return this.activeDrivers.filter(d => {
-                        const r = this.getDriverRegionID(d);
-                        return this.dashboardFilter === 'All' || r === this.dashboardFilter;
-                    });
-                },
-                get regionGridData() {
-                    // Calculate stats per region for the grid view
-                    const now = new Date();
-                    const data = this.regions.map(r => {
-                        let count = 0;
-                        let hours = 0;
-                        
-                        this.activeDrivers.forEach(d => {
-                            // Check matches
-                            const dReg = this.getDriverRegionID(d);
-                            if(dReg === r.id) {
-                                count++;
-                                const s = this.toDate(d.login_time);
-                                if(s) hours += (now - s) / 3600000;
-                            }
-                        });
-                        return { id: r.id, name: r.name, count, hours };
-                    });
-                    return data;
-                },
-                get weeklyStats() {
-                    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                    const buckets = days.map(label => ({ label, hours: 0, pct: 0 }));
-                    const now = new Date();
-                    const sevenDaysAgo = new Date();
-                    sevenDaysAgo.setDate(now.getDate() - 7);
-                    let total = 0;
-                    let max = 0;
-
-                    this.driverHistory.forEach(log => {
-                        const start = this.toDate(log.login_time);
-                        if (start && start >= sevenDaysAgo) {
-                            let dayIdx = start.getDay() - 1; 
-                            if (dayIdx === -1) dayIdx = 6; 
-                            buckets[dayIdx].hours += log.duration;
-                            total += log.duration;
-                        }
-                    });
-
-                    buckets.forEach(b => { if(b.hours > max) max = b.hours; });
-                    buckets.forEach(b => { b.pct = max > 0 ? (b.hours / max) * 100 : 0; });
-                    return { days: buckets, total };
-                },
-                get filteredRoster() {
-                    const q = this.searchQuery.toLowerCase();
-                    return this.roster.filter(d => {
-                        const name = d.name ? d.name.toLowerCase() : '';
-                        const id = d.id.toLowerCase();
-                        return name.includes(q) || id.includes(q);
-                    });
-                },
-
-                // Helpers
                 initApp() {
                     db.collection(COLLECTIONS.REGIONS).onSnapshot(s => this.regions = s.docs.map(d => ({id: d.id, ...d.data()})) );
                     db.collection(COLLECTIONS.ACTIVE).onSnapshot(s => this.activeDrivers = s.docs.map(d => ({id: d.id, ...d.data()})) );
                     db.collection(COLLECTIONS.ROSTER).onSnapshot(s => this.roster = s.docs.map(d => ({id: d.id, ...d.data()})) );
+                    const now = new Date(); this.exportForm.endDate = now.toISOString().split('T')[0];
+                    now.setDate(now.getDate() - 7); this.exportForm.startDate = now.toISOString().split('T')[0];
                 },
-                toDate(val) {
-                    if(!val) return null;
-                    if(val.toDate) return val.toDate();
-                    const d = new Date(val);
-                    return isNaN(d.getTime()) ? null : d;
-                },
-                getDriverRegionID(d) {
-                    return d.Driversite || d.site_id || d.region_id || d.site || d.region || 'Unassigned';
-                },
-                getRegionName(id) {
-                    const r = this.regions.find(x => x.id === id);
-                    return r ? r.name : (id || 'Unknown');
-                },
-                getRegionCount(id) {
-                    return this.activeDrivers.filter(d => this.getDriverRegionID(d) === id).length;
-                },
-                getDriverName(id) {
-                    const d = this.roster.find(x => x.id === id);
-                    return d && d.name ? d.name : id;
-                },
-                formatTime(val) {
-                    const d = this.toDate(val);
-                    return d ? d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--';
-                },
-                formatDate(val) {
-                    const d = this.toDate(val);
-                    return d ? d.toLocaleDateString() : '--';
-                },
-                formatTimeRange(start, end) {
-                    const s = this.toDate(start);
-                    const e = this.toDate(end);
-                    if(!s) return '--';
-                    const t1 = s.toLocaleTimeString([],{hour:'2-digit', minute:'2-digit'});
-                    const t2 = e ? e.toLocaleTimeString([],{hour:'2-digit', minute:'2-digit'}) : 'Active';
-                    return `${t1} - ${t2}`;
-                },
-                calculateDuration(start) {
-                    const s = this.toDate(start);
-                    if(!s) return '--';
-                    const diff = (new Date() - s) / 3600000;
-                    const hrs = Math.floor(diff);
-                    const mins = Math.floor((diff % 1) * 60);
-                    return `${hrs}h ${mins}m`;
-                },
-                getProgressStyle(driver) {
-                    const start = this.toDate(driver.login_time);
-                    if(!start) return '';
-                    const elapsed = new Date() - start;
-                    let pct = (elapsed / 28800000) * 100; 
-                    let color = '#10b981'; 
-                    if(pct > 100) { pct = 100; color = '#ef4444'; }
-                    return `background: linear-gradient(to right, ${color} ${pct}%, transparent ${pct}%) no-repeat bottom; background-size: 100% 2px;`;
-                },
-                getDurationColor(hrs) {
-                    if(hrs > 10) return 'bg-red-500';
-                    if(hrs > 8) return 'bg-yellow-500';
-                    return 'bg-blue-500';
-                },
-                isActive(id) { return this.activeDrivers.some(d => d.id === id); },
 
-                // Actions
-                setDashboardFilter(id) { 
-                    this.dashboardFilter = id;
-                    this.dashboardView = 'list'; // Drill down automatically
+                get filteredDrivers() { return this.activeDrivers.filter(d => { const r = this.getDriverRegionID(d); return this.dashboardFilter === 'All' || r === this.dashboardFilter; }); },
+                get filteredRoster() { 
+                    const q = this.searchQuery.toLowerCase(); 
+                    return this.roster.filter(d => { 
+                        const name = (d.name||'').toLowerCase(); const id = d.id.toLowerCase(); 
+                        const matchReg = this.rosterRegionFilter === 'All' || this.getDriverRegionID(d) === this.rosterRegionFilter;
+                        return (name.includes(q) || id.includes(q)) && matchReg; 
+                    }); 
                 },
-                selectDriver(id) {
-                    this.selectedDriverId = id;
-                    const driver = this.roster.find(d => d.id === id) || {};
-                    this.editForm = {
-                        name: driver.name || '',
-                        vehicle: driver.vehicle || '',
-                        note: driver.alert_note || '',
-                        region: this.getDriverRegionID(driver) || ''
-                    };
-                    this.loadHistory(id);
-                },
-                async loadHistory(id) {
-                    const snap = await db.collection(COLLECTIONS.ROSTER).doc(id).collection("shiftHistory")
-                        .orderBy("login_time", "desc").limit(50).get();
+                get regionGridData() {
                     const now = new Date();
-                    this.driverHistory = snap.docs.map(doc => {
-                        const d = doc.data();
-                        const s = this.toDate(d.login_time);
-                        const e = this.toDate(d.logout_time);
-                        let dur = 0;
-                        if (s && e) dur = (e - s) / 3600000;
-                        else if (s) dur = (now - s) / 3600000;
-                        return { id: doc.id, ...d, duration: dur };
+                    return this.regions.map(r => {
+                        let count = 0, hours = 0;
+                        this.activeDrivers.forEach(d => {
+                            if(this.getDriverRegionID(d) === r.id) { count++; const s = this.toDate(d.login_time); if(s) hours += (now - s) / 3600000; }
+                        });
+                        return { id: r.id, name: r.name, count, hours };
                     });
                 },
-                async saveDriver() {
-                    if(!this.selectedDriverId) return;
-                    await db.collection(COLLECTIONS.ROSTER).doc(this.selectedDriverId).set({
-                        name: this.editForm.name,
-                        vehicle: this.editForm.vehicle,
-                        alert_note: this.editForm.note,
-                        default_region: this.editForm.region
-                    }, { merge: true });
-                    alert("Saved");
-                },
-                async forceSignOut() {
-                    if(confirm("Sign out driver?")) await db.collection(COLLECTIONS.ACTIVE).doc(this.selectedDriverId).delete();
-                },
-                async saveHistoryNote(tripId, note) {
-                    await db.collection(COLLECTIONS.ROSTER).doc(this.selectedDriverId)
-                        .collection("shiftHistory").doc(tripId).update({ note: note });
-                },
-                async saveRegion() {
-                    if(this.newRegion.id && this.newRegion.name) {
-                        await db.collection(COLLECTIONS.REGIONS).doc(this.newRegion.id).set({
-                            name: this.newRegion.name, created_at: new Date()
-                        });
-                        this.regionModalOpen = false;
-                        this.newRegion = {id:'', name:''};
-                    }
-                },
-                async deleteRegion(id) {
-                    if(confirm("Delete region?")) await db.collection(COLLECTIONS.REGIONS).doc(id).delete();
-                },
-
-                // EXPORT ACTIONS
-                async generateDailyReport() {
-                    this.isExporting = true;
-                    const { start, end } = this.getLocalDayRange(this.exportForm.dailyDate);
-                    const regionFilter = this.exportForm.dailyRegion;
-                    let csvContent = "Driver Name,Driver ID,Vehicle,Region,Login,Logout,Hours,Notes\n";
-                    
-                    const promises = this.roster.map(async (driver) => {
-                        const snap = await db.collection(COLLECTIONS.ROSTER).doc(driver.id)
-                            .collection("shiftHistory").get(); 
-                        snap.docs.forEach(doc => {
-                            const d = doc.data();
-                            const login = this.toDate(d.login_time);
-                            const logout = this.toDate(d.logout_time);
-                            if(login && login >= start && login <= end) {
-                                const rID = this.getDriverRegionID(d);
-                                if(regionFilter === 'All' || rID === regionFilter) {
-                                    const dur = logout ? (logout - login)/3600000 : 0;
-                                    csvContent += `"${driver.name||driver.id}","${driver.id}","${d.vehicle||''}","${this.getRegionName(rID)}","${login.toLocaleString()}","${logout ? logout.toLocaleString() : 'Active'}","${dur.toFixed(2)}","${d.note||''}"\n`;
-                                }
-                            }
-                        });
+                get regionStats() {
+                    const stats = {}; const now = new Date();
+                    this.activeDrivers.forEach(d => {
+                        const rID = this.getDriverRegionID(d); const rName = this.getRegionName(rID);
+                        const start = this.toDate(d.login_time); if(start) { const hrs = (now - start) / 3600000; stats[rName] = (stats[rName] || 0) + hrs; }
                     });
-                    await Promise.all(promises);
-                    this.downloadCSV(csvContent, `Daily_Log_${this.exportForm.dailyDate}.csv`);
-                    this.isExporting = false;
+                    return stats;
                 },
-                async generateDriverReport() {
-                    this.isExporting = true;
-                    const { start } = this.getLocalDayRange(this.exportForm.startDate);
-                    const { end } = this.getLocalDayRange(this.exportForm.endDate);
-                    const snap = await db.collection(COLLECTIONS.ROSTER).doc(this.exportForm.driverId).collection("shiftHistory").get();
-                    let csvContent = "Date,Vehicle,Region,Start,End,Hours,Notes\n";
-                    snap.docs.forEach(doc => {
-                        const d = doc.data();
-                        const login = this.toDate(d.login_time);
-                        const logout = this.toDate(d.logout_time);
-                        if(login && login >= start && login <= end) {
-                            const dur = logout ? (logout - login)/3600000 : 0;
-                            csvContent += `"${login.toLocaleDateString()}","${d.vehicle||''}","${this.getRegionName(this.getDriverRegionID(d))}","${login.toLocaleTimeString()}","${logout?logout.toLocaleTimeString():'Active'}","${dur.toFixed(2)}","${d.note||''}"\n`;
+                get weeklyStats() {
+                    const buckets = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(l => ({ label: l, hours: 0, pct: 0 }));
+                    const now = new Date(); const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(now.getDate() - 7);
+                    let total = 0, max = 0;
+                    this.driverHistory.forEach(log => {
+                        const start = this.toDate(log.login_time);
+                        if(start && start >= sevenDaysAgo) {
+                            let idx = start.getDay() - 1; if(idx === -1) idx = 6;
+                            buckets[idx].hours += log.duration; total += log.duration;
                         }
                     });
-                    this.downloadCSV(csvContent, `Driver_History_${this.exportForm.driverId}.csv`);
-                    this.isExporting = false;
+                    buckets.forEach(b => max = Math.max(max, b.hours));
+                    buckets.forEach(b => b.pct = max ? (b.hours / max) * 100 : 0);
+                    return { days: buckets, total };
                 },
-                getLocalDayRange(dateStr) {
-                    const parts = dateStr.split('-');
-                    const y = parseInt(parts[0]), m = parseInt(parts[1])-1, d = parseInt(parts[2]);
-                    return { start: new Date(y, m, d, 0,0,0,0), end: new Date(y, m, d, 23,59,59,999) };
+
+                toDate(val) { if(!val) return null; if(val.toDate) return val.toDate(); const d = new Date(val); return isNaN(d.getTime()) ? null : d; },
+                getDriverRegionID(d) { return d.Driversite || d.site_id || d.region_id || d.site || d.region || d.default_region || 'Unassigned'; },
+                getRegionName(id) { const r = this.regions.find(x => x.id === id); return r ? r.name : (id || 'Unknown'); },
+                getDriverName(id) { const d = this.roster.find(x => x.id === id); return d && d.name ? d.name : id; },
+                getRegionCount(id) { return this.activeDrivers.filter(d => this.getDriverRegionID(d) === id).length; },
+                isActive(id) { return this.activeDrivers.some(d => d.id === id); },
+                formatTime(val) { const d = this.toDate(val); return d ? d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '--'; },
+                formatDate(val) { const d = this.toDate(val); return d ? d.toLocaleDateString() : '--'; },
+                formatTimeRange(s, e) { const start = this.toDate(s); const end = this.toDate(e); return start ? `${start.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} - ${end ? end.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : 'Active'}` : '--'; },
+                calculateDuration(s) { const start = this.toDate(s); if(!start) return '--'; const diff = (new Date() - start)/60000; return `${Math.floor(diff/60)}h ${Math.floor(diff%60)}m`; },
+                getProgressStyle(d, isLight = false) { 
+                    const s = this.toDate(d.login_time); if(!s) return ''; 
+                    const pct = Math.min(((new Date() - s)/28800000)*100, 100); 
+                    const color = pct >= 100 ? '#ef4444' : '#10b981';
+                    return `background: linear-gradient(to right, ${color} ${pct}%, transparent ${pct}%) no-repeat bottom; background-size: 100% ${isLight ? '100%' : '2px'};`; 
                 },
-                downloadCSV(content, filename) {
-                    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-                    const link = document.createElement("a");
-                    link.href = URL.createObjectURL(blob);
-                    link.download = filename;
-                    link.click();
+                getDurationColor(h) { return h > 10 ? 'bg-red-500' : (h > 8 ? 'bg-yellow-500' : 'bg-brand-500'); },
+
+                setDashboardFilter(id) { this.dashboardFilter = id; this.dashboardView = id === 'All' ? 'grid' : 'list'; },
+                selectDriver(id) { this.selectedDriverId = id; const d = this.roster.find(x => x.id === id) || {}; this.editForm = { name: d.name||'', vehicle: d.vehicle||'', note: d.alert_note||'', region: this.getDriverRegionID(d) }; this.loadHistory(id); },
+                async loadHistory(id) {
+                    const snap = await db.collection(COLLECTIONS.ROSTER).doc(id).collection("shiftHistory").orderBy("login_time","desc").limit(50).get();
+                    const now = new Date();
+                    this.driverHistory = snap.docs.map(doc => { const d = doc.data(); const s = this.toDate(d.login_time); const e = this.toDate(d.logout_time); let dur = 0; if(s) dur = ((e||now)-s)/3600000; return { id: doc.id, ...d, duration: dur }; });
+                },
+                async saveDriver() { if(!this.selectedDriverId) return; await db.collection(COLLECTIONS.ROSTER).doc(this.selectedDriverId).set({ name: this.editForm.name, vehicle: this.editForm.vehicle, alert_note: this.editForm.note, default_region: this.editForm.region }, {merge: true}); alert("Saved"); },
+                async saveRegion() { if(this.newRegion.id && this.newRegion.name) { await db.collection(COLLECTIONS.REGIONS).doc(this.newRegion.id).set({name: this.newRegion.name}); this.regionModalOpen = false; this.newRegion = {id:'',name:''}; } },
+                async deleteRegion(id) { if(confirm("Delete?")) await db.collection(COLLECTIONS.REGIONS).doc(id).delete(); },
+                async forceSignOut() { if(confirm("Force logout?")) await db.collection(COLLECTIONS.ACTIVE).doc(this.selectedDriverId).delete(); },
+                async saveHistoryNote(tid, note) { await db.collection(COLLECTIONS.ROSTER).doc(this.selectedDriverId).collection("shiftHistory").doc(tid).update({note}); },
+                
+                getLocalDayRange(d) { const p = d.split('-'); const y=parseInt(p[0]), m=parseInt(p[1])-1, day=parseInt(p[2]); return { start: new Date(y,m,day,0,0,0), end: new Date(y,m,day,23,59,59) }; },
+                downloadCSV(c, n) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([c], {type:'text/csv'})); a.download = n; a.click(); },
+                
+                async generateDailyReport() {
+                    this.isExporting = true; const {start, end} = this.getLocalDayRange(this.exportForm.dailyDate); const rf = this.exportForm.dailyRegion;
+                    let csv = "Driver,ID,Vehicle,Region,Login,Logout,Hours,Notes\n";
+                    const promises = this.roster.map(async (d) => {
+                        const snap = await db.collection(COLLECTIONS.ROSTER).doc(d.id).collection("shiftHistory").get();
+                        snap.docs.forEach(doc => { const data = doc.data(); const l = this.toDate(data.login_time); const o = this.toDate(data.logout_time);
+                            if(l && l>=start && l<=end) { const rid = this.getDriverRegionID(data); if(rf==='All' || rid===rf) {
+                                const h = o ? ((o-l)/3600000).toFixed(2) : 'Active'; csv += `"${d.name||d.id}","${d.id}","${data.vehicle||''}","${this.getRegionName(rid)}","${l.toLocaleString()}","${o?o.toLocaleString():'Active'}","${h}","${data.note||''}"\n`;
+                            }}
+                        });
+                    });
+                    await Promise.all(promises); this.downloadCSV(csv, `Daily_Log_${this.exportForm.dailyDate}.csv`); this.isExporting = false;
+                },
+                async generateDriverReport() {
+                    this.isExporting = true; const {start} = this.getLocalDayRange(this.exportForm.startDate); const {end} = this.getLocalDayRange(this.exportForm.endDate);
+                    const snap = await db.collection(COLLECTIONS.ROSTER).doc(this.exportForm.driverId).collection("shiftHistory").get();
+                    let csv = "Date,Vehicle,Region,Start,End,Hours,Notes\n";
+                    snap.docs.forEach(doc => { const d = doc.data(); const l = this.toDate(d.login_time); const o = this.toDate(d.logout_time);
+                        if(l && l>=start && l<=end) { const h = o ? ((o-l)/3600000).toFixed(2) : 0; csv += `"${l.toLocaleDateString()}","${d.vehicle||''}","${this.getRegionName(this.getDriverRegionID(d))}","${l.toLocaleTimeString()}","${o?o.toLocaleTimeString():'Active'}","${h}","${d.note||''}"\n`; }
+                    });
+                    this.downloadCSV(csv, `Driver_History.csv`); this.isExporting = false;
                 }
             }
         }
